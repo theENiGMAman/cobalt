@@ -3,7 +3,6 @@
 // ===============================
 
 (function () {
-  const PASSWORD = "rustpie"; // change if needed
   const display = document.getElementById("display");
   let input = "";
 
@@ -11,9 +10,9 @@
 
   function submit() {
     if (input === PASSWORD) {
-      window.location.href = "success.html";
+      window.location.href = "REDACTED";
     } else {
-      window.location.href = "accessdenied.html";
+      window.location.href = "REDACTED";
     }
   }
 
@@ -195,3 +194,4 @@ window.addEventListener("DOMContentLoaded", () => {
 
   setInterval(randomize, 120);
 })();
+
