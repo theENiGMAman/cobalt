@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>COBALT — ACCESS GRANTED</title>
+<link rel="stylesheet" href="styles.css" />
+<style>
+/* Page-specific styling for success / welcome modal */
+.screen.crt { font-family: monospace; font-size: 13px; line-height: 1.15; }
+
+/* Success modal overlay (keeps CRT in the background) */
+.success-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 24px;
+}
+
+/* Window */
+.success-window {
+  width: min(920px, 96%);
+  background: linear-gradient(180deg, rgba(2,20,6,0.95), rgba(6,10,6,0.95));
+  border: 2px solid rgba(0,200,100,0.12);
+  box-shadow: 0 12px 60px rgba(0,0,0,0.8), 0 0 36px rgba(0,200,100,0.03) inset;
+  padding: 20px;
+  color: #dfffe0;
+  font-family: monospace;
+  line-height: 1.25;
+  border-radius: 8px;
+  position: relative;
+  text-align: left;
+}
+
+/* header */
+.success-window .header {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.success-window .status {
+  font-weight: 800;
+  color: #a8ffb4;
+  letter-spacing: 1px;
+  font-size: 16px;
+}
+.success-window .welcome {
+  color: #ffdca8;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+/* pinned red "CLASSIFIED" ribbon */
+.ribbon {
+  position: absolute;
+  left: -6px;
+  top: -6px;
+  background: rgba(180,0,0,0.95);
+  color: white;
+  padding: 6px 10px;
+  font-weight: 800;
+  transform: rotate(-6deg);
+  box-shadow: 0 8px 30px rgba(200,0,0,0.12);
+  letter-spacing: 1px;
+}
+
+/* content blocks */
+.block {
+  margin: 10px 0;
+  padding: 10px;
+  border: 1px dashed rgba(200,255,200,0.03);
+  background: rgba(0,0,0,0.12);
+  border-radius: 4px;
+}
+
+/* critical info highlight */
+.critical {
+  color: #ffd6b6;
+  font-weight: 700;
+}
+
+/* code lock box */
+.codelock {
+  display:inline-block;
+  font-family: monospace;
+  font-size: 20px;
+  letter-spacing: 6px;
+  background: rgba(0,0,0,0.25);
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.03);
+  color: #ffdfb8;
+  margin-left: 8px;
+}
+
+/* small warning text */
+.warn {
+  color: rgba(255,120,120,0.95);
+  font-weight: 700;
+}
+
+/* footer actions */
+.actions {
+  margin-top: 14px;
+  display:flex;
+  justify-content:flex-end;
+  gap:10px;
+}
+.btn {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.06);
+  color: #dfffe0;
+  padding: 6px 10px;
+  cursor: url('cursor.png'), pointer;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+/* small meta row */
+.meta {
+  margin-top:8px;
+  color: rgba(255,255,255,0.45);
+  font-size: 12px;
+}
+
+/* subtle pulse on the codelock for ominous effect */
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(255,200,120,0.0); }
+  50% { box-shadow: 0 0 18px 4px rgba(255,200,120,0.05); }
+  100% { box-shadow: 0 0 0 0 rgba(255,200,120,0.0); }
+}
+.codelock { animation: pulse 2.4s ease-in-out infinite; }
+</style>
+</head>
+<body>
+ <script src="sound.js"></script>
+  <div class="noise"></div>
+  <div id="crtContainer" class="crt-container">
+    <div class="scan-line"></div>
+    <div class="distort-overlay"></div>
+
+    <div class="container">
+      <div class="frame" role="application" aria-label="Cobalt access success">
+        <div class="screen crt" id="screen" tabindex="0" aria-live="polite">
+<pre style="font-family: monospace; line-height:1.05; font-size:13px;">
+ ██████  ██████  ██████   █████  ██      ████████ 
+██      ██    ██ ██   ██ ██   ██ ██         ██    
+██      ██    ██ ██████  ███████ ██         ██    
+██      ██    ██ ██   ██ ██   ██ ██         ██    
+ ██████  ██████  ██████  ██   ██ ███████    ██    
+
+COBALT ACCESS CONTROL — AUTHENTICATION SUCCESS
+</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUCCESS OVERLAY (outside CRT so it's not squashed) -->
+  <div class="success-overlay" role="dialog" aria-modal="true" aria-labelledby="sw-title">
+    <div class="success-window" role="document" aria-labelledby="sw-title">
+      <div class="ribbon">CLASSIFIED</div>
+
+      <div class="header">
+        <div>
+          <div class="status">PASSWORD VERIFIED</div>
+          <div class="welcome">Welcome, <span style="color:#bfffb8">Leader 17</span></div>
+        </div>
+        <div style="text-align:right">
+          <div class="meta">Session: <span class="critical">#LD17-█-9F</span></div>
+          <div class="meta">Authenticated: <span class="critical">2025-09-27 14:22:04 UTC</span></div>
+        </div>
+      </div>
+
+      <div class="block">
+        <div style="font-weight:800; color:#ffdca8">Blacksite: <span class="critical">ECHO-PIER / "THE WRAITHHOLD"</span></div>
+        <div style="margin-top:6px;">
+          Designation: <span class="critical">BLACKSITE — OFF-RECORD FACILITY</span><br>
+          Operation: <span class="critical">OPERATION NIGHTWEAVE</span>
+        </div>
+
+        <p style="margin-top:8px;">
+          Location coordinates (grid): <span class="critical">H17</span><br>
+          Physical reference: <span class="critical">H17 — Docking Sector, Sub-Bay 04; concrete access corridor, eastern loading gantry.</span>
+        </p>
+
+        <p class="warn" style="margin-top:8px;">
+          NOTE: This facility is designated a **BLACKSITE**. COBALT keycards and standard credentials will NOT grant access to internal terminals. All standard telemetry and manifests are suppressed from public nodes.
+        </p>
+      </div>
+
+      <div class="block">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div style="font-weight:800; color:#ffdca8">Codelock (door access):</div>
+          <!-- 4-digit code — fictional in-game code -->
+          <div class="codelock" aria-hidden="false">7 1 4 2</div>
+        </div>
+
+        <p style="margin-top:8px;">
+          Use this temporary manual override code at the secure outer lock terminal only. The inner access grid will still require a biometric and the site’s physical key. Report any anomalies to command channel.
+        </p>
+      </div>
+
+      <div class="block">
+        <p style="font-weight:700; color:#ffdca8">Operational Brief (excerpt)</p>
+        <p>
+          ECHO-PIER houses long-range containment bays and an experimental alloy conditioning rig. Recent runs under OPERATION NIGHTWEAVE have produced anomalous resonance in sealed substrates. Exposure may correlate with low-frequency audio phenomena and electronic timestamp drift. Only authorized LEADERS with direct clearance may issue field instructions.
+        </p>
+      </div>
+
+      <div class="actions">
+        <button class="btn" id="btn-cancel">RETURN TO TERMINAL</button>
+        <button class="btn" id="btn-proceed">OPEN DEPLOYMENT BRIEF</button>
+      </div>
+
+      <div class="meta">
+        If you are not Leader 17, this session will be reported and revoked. Accessing this data outside of assigned mission parameters is a violation of Cobalt protocol.
+      </div>
+    </div>
+  </div>
+
+<script>
+/* Small interaction handlers */
+document.getElementById('btn-cancel').addEventListener('click', () => {
+  window.location.href = 'index.html';
+});
+
+document.getElementById('btn-proceed').addEventListener('click', () => {
+  // For demo, send user to a placeholder briefing; adjust as needed.
+  // You can change to 'deployment.html' or another page you create.
+  window.location.href = 'accessdenied.html';
+});
+</script>
+
+<script src="crt-effects.js"></script>
+</body>
+</html>

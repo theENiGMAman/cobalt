@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>COBALT — MESSAGES</title>
+<link rel="stylesheet" href="styles.css" />
+<style>
+/* ---------- Inline styles specific to the inbox page ---------- */
+/* Keep monospace + small text to match your terminal look */
+.screen.crt { font-family: monospace; font-size: 13px; line-height: 1.15; }
+
+/* Email list layout */
+.email-inbox {
+  padding: 8px 10px;
+
+  white-space: pre-wrap; /* preserve spacing but allow wrapping */
+}
+.container {
+    width: 50% !important;          /* or whatever max width you want */
+  margin: 0 auto;
+}
+
+.inbox-header {
+  margin-bottom: 8px;
+}
+
+.email-list {
+  display: block;
+  border-top: 1px solid rgba(0,0,0,0.25);
+  margin-top: 6px;
+}
+
+.email-item {
+  display: flex;
+  gap: 10px;
+  padding: 8px 6px;
+  border-bottom: 1px dashed rgba(255,255,255,0.06);
+  align-items: center;
+  cursor: pointer;
+}
+
+/* Make the subject look like a retro link */
+.email-item .subject {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  color: #b9ff9a; /* pipboy-y green; your styles.css may override */
+}
+
+/* meta info */
+.email-item .meta {
+  color: rgba(255,255,255,0.45);
+  font-size: 11px;
+  min-width: 170px;
+}
+
+/* unread marker */
+.email-item.unread .meta::before {
+  content: "● ";
+  color: #ffcc66;
+  margin-right: 6px;
+}
+
+/* Fake email window (modal) */
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.overlay.active {
+  display: flex;
+  pointer-events: auto;
+}
+
+/* window style — fits pipboy/crt aesthetic */
+.email-window {
+  width: min(900px, 94%);
+  max-height: 80vh;
+  overflow: auto;
+  background: rgba(8,14,6,0.95);
+  border: 2px solid rgba(120,255,160,0.08);
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+  padding: 14px;
+  color: #dfffe0;
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.25;
+  border-radius: 6px;
+  position: relative;
+}
+
+/* Fake window chrome */
+.email-window .titlebar {
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 8px;
+}
+.title-left { font-weight: 700; color: #b9ff9a; }
+.title-right { color: rgba(255,255,255,0.5); font-size: 12px; }
+
+/* close button */
+.btn-close {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #fff;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+/* fake attachments */
+.attachment {
+  display:inline-block;
+  border:1px dashed rgba(255,255,255,0.06);
+  padding:4px 8px;
+  margin-top:10px;
+  text-decoration: underline;
+  color: #ffd6b6;
+}
+
+/* small footer notice */
+.email-window .footer {
+  margin-top:12px;
+  color: rgba(255,255,255,0.45);
+  font-size: 12px;
+}
+
+/* accessibility focus */
+.email-item:focus, .btn-close:focus {
+  outline: 2px dashed rgba(185,255,154,0.6);
+  outline-offset: 4px;
+}
+
+/* Keep <pre> look in list area */
+.email-line {
+  display:block;
+}
+</style>
+<audio id="clickSound" src="sfx/click.mp3" preload="auto"></audio>
+<audio id="openSound" src="sfx/open.mp3" preload="auto"></audio>
+<audio id="closeSound" src="sfx/close.mp3" preload="auto"></audio>
+
+<script>
+  const clickSound = document.getElementById('clickSound');
+  const openSound  = document.getElementById('openSound');
+  const closeSound = document.getElementById('closeSound');
+
+  // Play click sound for every click on the page
+  document.addEventListener('click', () => {
+    clickSound.currentTime = 0;
+    clickSound.play().catch(()=>{});
+  });
+
+  // Patch openMessage and closeOverlay to add sounds
+  (function(){
+    const origOpenMessage = window.openMessage;
+    const origCloseOverlay = window.closeOverlay;
+
+    // Re-declare functions in global scope
+    window.openMessage = function(id){
+      openSound.currentTime = 0;
+      openSound.play().catch(()=>{});
+      if (origOpenMessage) origOpenMessage(id);
+    };
+
+    window.closeOverlay = function(){
+      closeSound.currentTime = 0;
+      closeSound.play().catch(()=>{});
+      if (origCloseOverlay) origCloseOverlay();
+    };
+  })();
+</script>
+
+
+</head>
+<body>
+<script src="sound.js"></script>
+  <div class="noise"></div>
+  <div id="crtContainer" class="crt-container">
+    <div class="scan-line"></div>
+    <div class="distort-overlay"></div>
+
+    <div class="container">
+      <div class="frame" role="application" aria-label="Cobalt Messages">
+        <div class="screen crt" id="screen" tabindex="0" aria-live="polite">
+
+<pre style="font-family: monospace; line-height: 1.15; font-size: 13px;">
+ ██████  ██████  ██████   █████  ██      ████████ 
+██      ██    ██ ██   ██ ██   ██ ██         ██    
+██      ██    ██ ██████  ███████ ██         ██    
+██      ██    ██ ██   ██ ██   ██ ██         ██    
+ ██████  ██████  ██████  ██   ██ ███████    ██    
+
+COBALT SECURE MAIL — INBOX
+</pre>
+<p> <span>AVAILABLE NODES YOU MAY ACCESS</span>: [<a href="incidents.html">Incident Reports</a>, <a href="archives.html">Archive</a>, <a href="index.html">Terminal</a>, <a href="support.html">Support</a>...]'></p>
+<div class="email-inbox" role="list" aria-label="Secure inbox">
+  <div class="inbox-header">
+    <span style="color: rgba(255,255,255,0.6)">USER X17-3B</span>
+    <span style="color: rgba(255,255,255,0.6)">Showing 12 messages</span>
+  </div>
+
+  <div class="email-list" role="list">
+    <!-- Each .email-item opens a fake message window -->
+    <div class="email-item unread" role="listitem" tabindex="0" data-id="m1" aria-controls="msg-m1">
+      <div class="meta">FROM: ops@cobalt.internal</div>
+      <div class="subject">[URGENT] SITE-B12 - ENERGY SPILL (CONTAINMENT)</div>
+      <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-11-03</div>
+    </div>
+
+    <div class="email-item unread" role="listitem" tabindex="0" data-id="m2" aria-controls="msg-m2">
+      <div class="meta">FROM: dr.kovalski@cobalt.internal</div>
+      <div class="subject">Specimen-Δ19 — unexpected galvanic reaction</div>
+      <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-10-17</div>
+    </div>
+
+    <div class="email-item" role="listitem" tabindex="0" data-id="m3" aria-controls="msg-m3">
+      <div class="meta">FROM: security@cobalt.internal</div>
+      <div class="subject">Authorization failure — repeated badge attempts</div>
+      <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-06-21</div>
+    </div>
+
+    <div class="email-item" role="listitem" tabindex="0" data-id="m4" aria-controls="msg-m4">
+      <div class="meta">FROM: archive@cobalt.internal</div>
+      <div class="subject">Recovery logs: LATTICE-3 raw telemetry (PARTIAL)</div>
+      <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-05-03</div>
+    </div>
+
+    <div class="email-item unread" role="listitem" tabindex="0" data-id="m5" aria-controls="msg-m5">
+      <div class="meta">FROM: research@cobalt.internal</div>
+      <div class="subject">Proposal: aerosolized alloy conditioning — Field trial</div>
+      <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-03-30</div>
+    </div>
+
+    <div class="email-item" role="listitem" tabindex="0" data-id="m6" aria-controls="msg-m6">
+      <div class="meta">FROM: it@cobalt.internal</div>
+      <div class="subject">Sensor array N-7 — intermittent corruption</div>
+      <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2053-12-09</div>
+    </div>
+
+    <div class="email-item" role="listitem" tabindex="0" data-id="m7" aria-controls="msg-m7">
+      <div class="meta">FROM: hr@cobalt.internal</div>
+      <div class="subject">Mandatory: Confidentiality refresh — sign A-12</div>
+      <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2053-07-02</div>
+    </div>
+
+    <div class="email-item" role="listitem" tabindex="0" data-id="m8" aria-controls="msg-m8">
+      <div class="meta">FROM: anonymous</div>
+      <div class="subject">Loose ends — voices on line 3</div>
+      <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2053-03-09</div>
+    </div>
+
+    <div class="email-item" role="listitem" tabindex="0" data-id="m9" aria-controls="msg-m9">
+      <div class="meta">FROM: logistics@cobalt.internal</div>
+      <div class="subject">Crate 14 — missing inventory: 'sealed sample'</div>
+      <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2053-02-11</div>
+    </div>
+
+    <div class="email-item" role="listitem" tabindex="0" data-id="m10" aria-controls="msg-m10">
+      <div class="meta">FROM: ops@cobalt.internal</div>
+      <div class="subject">Policy: Unscheduled power cycling for Aurora-3</div>
+      <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2052-12-29</div>
+    </div>
+
+    <div class="email-item" role="listitem" tabindex="0" data-id="m11" aria-controls="msg-m11">
+      <div class="meta">FROM: devnull</div>
+      <div class="subject">[ENCRYPTED] — do not open on site</div>
+      <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2052-11-02</div>
+    </div>
+
+    <div class="email-item" role="listitem" tabindex="0" data-id="m12" aria-controls="msg-m12">
+      <div class="meta">FROM: external@unknown</div>
+      <div class="subject">Proposal: longevity serum trial — offsite</div>
+      <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2052-09-10</div>
+    </div>
+  </div>
+</div>
+
+<!-- Overlay + message windows -->
+<div id="overlay" class="overlay" aria-hidden="true">
+  <!-- Message m1 -->
+  <article id="msg-m1" class="email-window" role="dialog" aria-modal="true" aria-labelledby="msg-m1-title" style="display:none;">
+    <div class="titlebar">
+      <div class="title-left" id="msg-m1-title">[URGENT] SITE-B12 - ENERGY SPILL (CONTAINMENT)</div>
+      <div class="title-right">FROM: ops@cobalt.internal — 2054-11-03</div>
+    </div>
+
+    <div class="body">
+      <p>TO: ON-SITE PERSONNEL</p>
+
+      <p>Immediate notice: An unclassified energy spill occurred in containment chamber B-12 at 03:42 local. Automated dampers failed to engage. Sensors recorded transient field spikes in the 0.9–1.2 THz band. Personnel are advised to initiate LUCB protocol and withdraw to staging area Delta-2.</p>
+
+      <p>DECON is delayed pending protocol clearance. DO NOT attempt mesh reattachment without authorization. Field footage and partial telemetry attached.</p>
+
+      <p><a class="attachment" href="accessdenied.html" aria-label="Open attachment">ATTACHMENT: spill_cam_03.zip</a></p>
+
+      <div class="footer">This message auto-generated by OPS. If you are not an authorized recipient, delete this message and report via secure channel.</div>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>
+
+  <!-- Message m2 -->
+  <article id="msg-m2" class="email-window" role="dialog" aria-modal="true" aria-labelledby="msg-m2-title" style="display:none;">
+    <div class="titlebar">
+      <div class="title-left" id="msg-m2-title">Specimen-Δ19 — unexpected galvanic reaction</div>
+      <div class="title-right">FROM: dr.kovalski@cobalt.internal — 2054-10-17</div>
+    </div>
+
+    <div class="body">
+      <p>Notes from: <em>Dr. Maya Kovalski</em></p>
+
+      <p>Experiment 19-B produced corrosion at interface 7C after aerosol exposure. Pitting appears to spread via microvoids at a rate not predicted by model 3.3. The sample began emitting a low amplitude chirp before failure; ambient equipment recorded a voice-like modulation at 2.7 kHz (corrupted by background). I recommend quarantining all samples from batch 14.</p>
+
+      <p>For clearance reasons, a redacted follow-up report is available in the archive. See: <a href="accessdenied.html">/project/specimen-delta19/report</a></p>
+
+      <div class="footer">— MK</div>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>
+
+  <!-- Message m3 -->
+  <article id="msg-m3" class="email-window" role="dialog" aria-modal="true" aria-labelledby="msg-m3-title" style="display:none;">
+    <div class="titlebar">
+      <div class="title-left" id="msg-m3-title">Authorization failure — repeated badge attempts</div>
+      <div class="title-right">FROM: security@cobalt.internal — 2054-06-21</div>
+    </div>
+
+    <div class="body">
+      <p>Alert: Multiple unauthorized badge attempts logged at Gate 4 between 01:10–01:32. Image capture indicates a silhouette carrying a crate labeled <strong>SEALED SAMPLE</strong>. Thermal readings atypical; operator reports a faint humming noise. Security dispatched — no physical confrontation recorded.</p>
+
+      <p>We recommend raising clearance to Level-4 for personnel involved with crate handling.</p>
+
+      <div class="footer">Security Log ID: SG-20540621-A</div>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>
+
+  <!-- Message m4 -->
+  <article id="msg-m4" class="email-window" role="dialog" aria-modal="true" aria-labelledby="msg-m4-title" style="display:none;">
+    <div class="titlebar">
+      <div class="title-left" id="msg-m4-title">Recovery logs: LATTICE-3 raw telemetry (PARTIAL)</div>
+      <div class="title-right">FROM: archive@cobalt.internal — 2054-05-03</div>
+    </div>
+
+    <div class="body">
+      <p>Log extract: Lattice-3 experiment return data — corrupted sectors flagged. Manual intervention required for sector 7. Partial transcripts indicate anomalous resonance that caused several read/write loops. Note: Some records include timestamps beyond expected run-time; cross-check with Aurora timeserver.</p>
+
+      <p>Attachment: <a class="attachment" href="accessdenied.html">LATTICE3_RAW_PART1.bin</a></p>
+
+      <div class="footer">Archive Node: COBALT/ARCH1 — ACCESS: LEVEL-3</div>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>
+
+  <!-- Message m5 -->
+  <article id="msg-m5" class="email-window" role="dialog" aria-modal="true" aria-labelledby="msg-m5-title" style="display:none;">
+    <div class="titlebar">
+      <div class="title-left" id="msg-m5-title">Proposal: aerosolized alloy conditioning — Field trial</div>
+      <div class="title-right">FROM: research@cobalt.internal — 2054-03-30</div>
+    </div>
+
+    <div class="body">
+      <p>Summary: Pilot proposes aerosolized conditioning of alloy substrates to increase resonance stability. Trial to be conducted offsite in controlled coastal environment. Note: modeled side effects include micro-pitting and auditory phenomena in local fauna. Approval requested.</p>
+
+      <p>Confidential attachment: <a class="attachment" href="accessdenied.html">FIELD_TRIAL_PLAN.pdf</a></p>
+
+      <div class="footer">Request ID: RQ-TRIAL-54</div>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>
+
+  <!-- Message m6 -->
+  <article id="msg-m6" class="email-window" role="dialog" aria-modal="true" aria-labelledby="msg-m6-title" style="display:none;">
+    <div class="titlebar">
+      <div class="title-left" id="msg-m6-title">Sensor array N-7 — intermittent corruption</div>
+      <div class="title-right">FROM: it@cobalt.internal — 2053-12-09</div>
+    </div>
+
+    <div class="body">
+      <p>Tech summary: N-7 has intermittent packet loss and timestamp drift. Corruption increases when Lattice nodes are online. We suspect EMI bleed from Aurora experiments. Recommend disabling auxiliary transmitters during maintenance window.</p>
+
+      <div class="footer">IT Ticket: IT-9283</div>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>
+
+  <!-- Message m7 -->
+  <article id="msg-m7" class="email-window" role="dialog" aria-modal="true" aria-labelledby="msg-m7-title" style="display:none;">
+    <div class="titlebar">
+      <div class="title-left" id="msg-m7-title">Mandatory: Confidentiality refresh — sign A-12</div>
+      <div class="title-right">FROM: hr@cobalt.internal — 2053-07-02</div>
+    </div>
+
+    <div class="body">
+      <p>All personnel must review Clause A-12 regarding external communication about specimen anomalies. Failure to sign will result in immediate suspension pending review. Signatures must be witnessed by your direct supervisor.</p>
+
+      <div class="footer">HR Reference: HR-A12/2053</div>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>
+
+  <!-- Message m8 -->
+  <article id="msg-m8" class="email-window" role="dialog" aria-modal="true" aria-labelledby="msg-m8-title" style="display:none;">
+    <div class="titlebar">
+      <div class="title-left" id="msg-m8-title">Loose ends — voices on line 3</div>
+      <div class="title-right">FROM: anonymous — 2053-03-09</div>
+    </div>
+
+    <div class="body">
+      <p>Received: Transcription attached.</p>
+
+      <p>Transcribed excerpt: "— you don't hear it when the lights are on. It comes back when they sleep. Don't touch the sample when it's breathing." Sender refused to identify themselves. IP resolves outside corporate range; message intercepted by IDS.</p>
+
+      <p><a class="attachment" href="accessdenied.html">TRANSCRIPTS_0303.txt</a></p>
+
+      <div class="footer">Interception flagged by Threat Analysis Unit.</div>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>
+
+  <!-- Message m9 -->
+  <article id="msg-m9" class="email-window" role="dialog" aria-modal="true" aria-labelledby="msg-m9-title" style="display:none;">
+    <div class="titlebar">
+      <div class="title-left" id="msg-m9-title">Crate 14 — missing inventory: 'sealed sample'</div>
+      <div class="title-right">FROM: logistics@cobalt.internal — 2053-02-11</div>
+    </div>
+
+    <div class="body">
+      <p>Inventory discrepancy: Crate 14 marked 'Sealed sample' not found at arrival. GPS trace shows crate purged from manifest between transit hubs. Local courier reports pressure anomalies during transport.</p>
+
+      <div class="footer">Logistics Case: LG-311</div>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>
+
+  <!-- Message m10 -->
+  <article id="msg-m10" class="email-window" role="dialog" aria-modal="true" aria-labelledby="msg-m10-title" style="display:none;">
+    <div class="titlebar">
+      <div class="title-left" id="msg-m10-title">Policy: Unscheduled power cycling for Aurora-3</div>
+      <div class="title-right">FROM: ops@cobalt.internal — 2052-12-29</div>
+    </div>
+
+    <div class="body">
+      <p>Policy update: Aurora-3 will undergo unscheduled cycles to stress-test containment grids. Night-time window only. Personnel within 200m must evacuate. Telemetry will be recorded and archived under restricted access.</p>
+
+      <div class="footer">Ops Directive OD-1229</div>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>
+
+  <!-- Message m11 -->
+  <article id="msg-m11" class="email-window" role="dialog" aria-modal="true" aria-labelledby="msg-m11-title" style="display:none;">
+    <div class="titlebar">
+      <div class="title-left" id="msg-m11-title">[ENCRYPTED] — do not open on site</div>
+      <div class="title-right">FROM: devnull — 2052-11-02</div>
+    </div>
+
+    <div class="body">
+      <p>Encrypted payload attached. Decryption requires offline key held in Vault-2. Internal policy forbids moving vault keys offsite. If you are authorized, request KLA via secure console.</p>
+
+      <p><a class="attachment" href="accessdenied.html">ENCRYPTED_PAYLOAD.bin</a></p>
+
+      <div class="footer">Security Advisory: Severe — Handle per vault protocol.</div>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>
+
+  <!-- Message m12 -->
+  <article id="msg-m12" class="email-window" role="dialog" aria-modal="true" aria-labelledby="msg-m12-title" style="display:none;">
+    <div class="titlebar">
+      <div class="title-left" id="msg-m12-title">Proposal: longevity serum trial — offsite</div>
+      <div class="title-right">FROM: external@unknown — 2052-09-10</div>
+    </div>
+
+    <div class="body">
+      <p>Pitch: Third-party offers 'longevity serum' derived from alloy-exposed substrates. Tests promising but ethically unvetted. Requesting internal review and vetting of provider credentials. Preliminary sample requested for blind analysis.</p>
+
+      <p><a class="attachment" href="accessdenied.html">PROPOSAL_SUMMARY.pdf</a></p>
+
+      <div class="footer">Referral: EXT-UNVER-2052</div>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>
+</div> <!-- end overlay -->
+
+<script>
+/* ---------- Tiny script to open/close email windows (WITH SFX) ---------- */
+(function(){
+  const openSound  = document.getElementById('openSound');
+  const closeSound = document.getElementById('closeSound');
+
+  const items = document.querySelectorAll('.email-item');
+  const overlay = document.getElementById('overlay');
+
+  function play(sound) {
+    if (!sound) return;
+    try {
+      sound.currentTime = 0;
+      sound.play();
+    } catch (err) {
+      // Browsers can block audio — log for debugging
+      console.warn('SFX play prevented or failed:', err);
+    }
+  }
+
+  function openMessage(id) {
+    const win = document.getElementById('msg-' + id);
+    if (!win) return;
+
+    // play open sound (user-initiated by click or keypress)
+    play(openSound);
+
+    // show overlay + window
+    overlay.classList.add('active');
+    overlay.setAttribute('aria-hidden', 'false');
+
+    overlay.querySelectorAll('.email-window').forEach(w => w.style.display = 'none');
+    win.style.display = 'block';
+
+    // focus close button for accessibility
+    const closeBtn = win.querySelector('[data-close]');
+    if (closeBtn) closeBtn.focus();
+  }
+
+  function closeOverlay() {
+    // play close sound
+    play(closeSound);
+
+    overlay.classList.remove('active');
+    overlay.setAttribute('aria-hidden', 'true');
+    overlay.querySelectorAll('.email-window').forEach(w => w.style.display = 'none');
+  }
+
+  // attach click + key handlers to items
+  items.forEach(item => {
+    const id = item.dataset.id;
+    item.addEventListener('click', () => openMessage(id));
+    item.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openMessage(id); }
+    });
+  });
+
+  // close when clicking the dimmed overlay
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeOverlay();
+  });
+
+  // close buttons inside windows (they have data-close attribute)
+  overlay.querySelectorAll('[data-close]').forEach(btn => {
+    btn.addEventListener('click', closeOverlay);
+  });
+
+  // ESC to close
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeOverlay();
+  });
+
+  // expose small debug hooks if you want to call manually
+  window._COBALT = { openMessage, closeOverlay };
+
+})();
+</script>
+
+
+        </div>
+      </div>
+    </div>
+<script src="crt-effects.js"></script>
+</body>
+</html>

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>COBALT — ARCHIVES NODE</title>
+<link rel="stylesheet" href="styles.css" />
+
+<audio id="clickSound" src="sfx/click.mp3" preload="auto"></audio>
+<audio id="openSound" src="sfx/open.mp3" preload="auto"></audio>
+<audio id="closeSound" src="sfx/close.mp3" preload="auto"></audio>
+
+<script>
+  const clickSound = document.getElementById('clickSound');
+  const openSound  = document.getElementById('openSound');
+  const closeSound = document.getElementById('closeSound');
+
+  // Play click sound for every click on the page
+  document.addEventListener('click', () => {
+    clickSound.currentTime = 0;
+    clickSound.play().catch(()=>{});
+  });
+
+  // Patch openMessage and closeOverlay to add sounds
+  (function(){
+    const origOpenMessage = window.openMessage;
+    const origCloseOverlay = window.closeOverlay;
+
+    // Re-declare functions in global scope
+    window.openMessage = function(id){
+      openSound.currentTime = 0;
+      openSound.play().catch(()=>{});
+      if (origOpenMessage) origOpenMessage(id);
+    };
+
+    window.closeOverlay = function(){
+      closeSound.currentTime = 0;
+      closeSound.play().catch(()=>{});
+      if (origCloseOverlay) origCloseOverlay();
+    };
+  })();
+</script>
+</head>
+<body>
+<script src="sound.js"></script>
+  <div class="noise"></div>
+  <div id="crtContainer" class="crt-container">
+    <div class="scan-line"></div>
+    <div class="distort-overlay"></div>
+
+    <div class="container">
+      <div class="frame" role="application" aria-label="Cobalt archives node">
+        <div class="screen crt" id="screen" tabindex="0" aria-live="polite">
+<pre style="font-family: monospace; line-height: 1.15; font-size: 13px;">
+ ██████  ██████  ██████   █████  ██      ████████ 
+██      ██    ██ ██   ██ ██   ██ ██         ██    
+██      ██    ██ ██████  ███████ ██         ██    
+██      ██    ██ ██   ██ ██   ██ ██         ██    
+ ██████  ██████  ██████  ██   ██ ███████    ██    
+
+COBALT ARCHIVE NODE — CLASSIFIED (LEVEL 2)
+
+
+  <!-- Each <p> uses data-text for the typewriter effect -->
+  <p> <b>[ARCHIVE 0001]  Project: LATTICE-3  |  Status: ARCHIVAL  |  Date: 2049-02-18"> </b>
+	Summary: Lattice-3 produced low-frequency resonances around synthetic alloys in vacuum; majority of data redacted. See /project/lattice-3/logs for raw telemetry."></p>
+
+  <p> <b>[ARCHIVE 0002]  Object: SPECIMEN-Δ19  |  Containment: DECOMMISSIONED  |  Date: 2050-06-03"></b>
+	Summary: Specimen-Δ19 exhibited anomalous surface pitting when exposed to simulated coastal aerosols. Samples archived; access requires Level-3 clearance."></p>
+
+  <p> <b>[ARCHIVE 0007]  Event: SITE-B12 CONTAINMENT BREACH  |  Incident ID: CB-2051-12"></b>
+	Summary: Unauthorized energy discharge recorded. Personnel manifest incomplete. Incident report redacted — refer to /incident/C B-2051-12 (redacted)."></p>
+
+  <p> <b>[ARCHIVE 0013]  Project: AURORA-SERIES  |  Note: PROTOTYPE  |  Date: 2052-11-21"></b>
+	Summary: Aurora prototype generated localized electromagnetic anomalies. Operational parameters archived under /secure/aurora/params (encrypted)."></p>
+
+  <p> <b>[ARCHIVE 0020]  Personnel: DR. MAYA KOVALSKI  |  Clearance: RETAINED  |  Last Active: 2053-03-08"></b>
+	Summary: Lead materials scientist. Last recorded transmission: 'compromise imminent - prepare lattice fallback'. See personnel files for @kovalski (redacted)."></p>
+
+  <p> <b>[ARCHIVE 0042]  File: OBSERVATION_LOGS.zip  |  Size: 18.4MB  |  Hash: 3adf... (truncated)"></b>
+	Summary: Observation logs from remote sensor array N-7. Partial corruption detected; sector recovery recommended."></p>
+
+  <p> NOTES: Many entries are redacted in compliance with Cobalt security policy. Request full node replication via Access Token Portal."></p>
+
+<p> <span>AVAILABLE NODES YOU MAY ACCESS</span>: [<a href="incidents.html">Incident Reports</a>, <a href="index.html">Terminal</a>, <a href="messages.html">Messages</a>, <a href="support.html">Support</a>...]'></p>
+</div>
+
+</pre>
+        </div>
+      </div>
+    </div>
+<script src="crt-effects.js"></script>
+</body>
+</html>

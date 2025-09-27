@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>COBALT — SUPPORT</title>
+<link rel="stylesheet" href="styles.css" />
+<style>
+/* ---------------- Retro DOS-style support page ---------------- */
+.screen.crt {
+    font-family: monospace;
+    font-size: 13px;
+    line-height: 1.15;
+}
+
+.support-box {
+    background: rgba(0, 0, 0, 0.85); /* slight CRT overlay */
+    border: 2px solid #33ff33;
+    padding: 16px;
+    border-radius: 6px;
+    max-width: 800px;
+    margin: 40px auto;
+    text-align: left;
+}
+
+.support-box h2 {
+    color: #ff4444; /* warning/red for attention */
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+
+.support-box p {
+    margin: 6px 0;
+}
+
+.support-box a {
+    color: #33ff33;
+    text-decoration: underline;
+}
+
+.support-box a:hover {
+    color: #66ff66;
+}
+
+footer {
+    margin-top: 50px;
+    text-align: center;
+    font-size: 12px;
+    color: rgba(255,255,255,0.5);
+}
+</style>
+</head>
+
+<body>
+  <script src="sound.js"></script>
+<div class="noise"></div>
+<div id="crtContainer" class="crt-container">
+    <div class="scan-line"></div>
+    <div class="distort-overlay"></div>
+
+    <div class="container">
+        <div class="frame" role="application" aria-label="Cobalt Support">
+            <div class="screen crt" id="screen" tabindex="0" aria-live="polite">
+
+<pre style="font-family: monospace; line-height: 1.15; font-size: 13px;">
+ ██████  ██████  ██████   █████  ██      ████████ 
+██      ██    ██ ██   ██ ██   ██ ██         ██    
+██      ██    ██ ██████  ███████ ██         ██    
+██      ██    ██ ██   ██ ██   ██ ██         ██    
+ ██████  ██████  ██████  ██   ██ ███████    ██    
+
+COBALT SECURE SUPPORT PORTAL v0.9a
+</pre>
+
+<div class="support-box">
+    <h2>SUPPORT INSTRUCTIONS</h2>
+    <p>If you are experiencing issues with the COBALT network, follow these steps carefully:</p>
+
+    <ol>
+        <li>Check all local terminal connections and power cycling logs.</li>
+        <li>Ensure your access token is active and not expired.</li>
+        <li>Confirm the system firewall and SSL certificates are correctly configured.</li>
+        <li>If the issue persists, report to COBALT IT admin via secure email.</li>
+    </ol>
+
+    <p>Send your support request to:</p>
+    <p><a href="mailto:hello@2bitbox.com?subject=COBALT Support Request&body=Please provide your issue description here.">hello@2bitbox.com</a></p>
+
+    <p><b>NOTICE:</b> Unauthorized access attempts or misuse of this support portal will trigger immediate logging and possible system lockdown.</p>
+</div>
+<p> <span>AVAILABLE NODES YOU MAY ACCESS</span>: [<a href="incidents.html">Incident Reports</a>, <a href="archives.html">Archive</a>, <a href="messages.html">Messages</a>, <a href="index.html">Terminal</a>...]'></p>
+<footer>
+    COBALT SECURE TERMINAL — © 2054 Cobalt Research Corp.
+</footer>
+
+            </div>
+        </div>
+    </div>
+</div>
+<script src="crt-effects.js"></script>
+</body>
+</html>

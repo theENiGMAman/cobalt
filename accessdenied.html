@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>COBALT — ACCESS DENIED</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+/* ACCESS DENIED overlay */
+.access-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.5);
+  z-index: 9999;
+}
+
+.access-window {
+  max-width: 900px;
+  width: 90%;
+  background: rgba(50,0,0,0.7);
+  border: 2px solid #ff0000;
+  box-shadow: 0 0 30px rgba(255,0,0,0.6);
+  padding: 20px;
+  color: #ff3333;
+  font-family: "Courier New", monospace;
+  line-height: 1.3;
+  border-radius: 6px;
+  position: relative;
+  text-align: left;
+}
+
+/* titlebar */
+.access-window .titlebar {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.access-window .title-left {
+  font-weight: bold;
+  font-size: 1.2em;
+  color: #ff4444;
+}
+.access-window .title-right {
+  color: rgba(255,100,100,0.7);
+  font-size: 0.9em;
+}
+
+/* close button */
+.access-window .btn-close {
+  background: transparent;
+  border: 1px solid rgba(255,0,0,0.4);
+  color: #ff6666;
+  padding: 4px 8px;
+  cursor: url('cursor.png'), pointer;
+  border-radius: 4px;
+  font-family: monospace;
+  font-weight: bold;
+}
+
+/* warning text */
+.access-window .body p {
+  margin-bottom: 12px;
+}
+
+/* flashing warning */
+.flash-red {
+  animation: flashRed 0.6s linear infinite alternate;
+  font-weight: bold;
+  text-align: center;
+}
+
+@keyframes flashRed {
+  0% { color: #ff0000; text-shadow: 0 0 5px #ff0000; }
+  100% { color: #ff7777; text-shadow: 0 0 15px #ff4444; }
+}
+</style>
+
+<audio id="clickSound" src="sfx/click.mp3" preload="auto"></audio>
+<audio id="openSound" src="sfx/open.mp3" preload="auto"></audio>
+<audio id="closeSound" src="sfx/close.mp3" preload="auto"></audio>
+
+<script>
+  const clickSound = document.getElementById('clickSound');
+  const openSound  = document.getElementById('openSound');
+  const closeSound = document.getElementById('closeSound');
+
+  // Play click sound for every click on the page
+  document.addEventListener('click', () => {
+    clickSound.currentTime = 0;
+    clickSound.play().catch(()=>{});
+  });
+
+  // Patch openMessage and closeOverlay to add sounds
+  (function(){
+    const origOpenMessage = window.openMessage;
+    const origCloseOverlay = window.closeOverlay;
+
+    // Re-declare functions in global scope
+    window.openMessage = function(id){
+      openSound.currentTime = 0;
+      openSound.play().catch(()=>{});
+      if (origOpenMessage) origOpenMessage(id);
+    };
+
+    window.closeOverlay = function(){
+      closeSound.currentTime = 0;
+      closeSound.play().catch(()=>{});
+      if (origCloseOverlay) origCloseOverlay();
+    };
+  })();
+</script>
+</head>
+<body>
+  <script src="sound.js"></script>
+  <div class="noise"></div>
+  <div id="crtContainer" class="crt-container">
+    <div class="scan-line"></div>
+    <div class="distort-overlay"></div>
+    <div class="container">
+      <div class="frame" role="application">
+        <div class="screen crt" id="screen" tabindex="0" aria-live="polite">
+<pre style="font-family: monospace; line-height: 1; font-size: 14px;">
+ ██████  ██████  ██████   █████  ██      ████████ 
+██      ██    ██ ██   ██ ██   ██ ██         ██    
+██      ██    ██ ██████  ███████ ██         ██    
+██      ██    ██ ██   ██ ██   ██ ██         ██    
+ ██████  ██████  ██████  ██   ██ ███████    ██    
+
+COBALT SECURE TERMINAL v0.9a
+Unauthorized access detected.
+</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACCESS DENIED POPUP OUTSIDE CRT -->
+  <div class="access-overlay" role="dialog" aria-modal="true" aria-labelledby="ad-title">
+    <div class="access-window">
+      <div class="titlebar">
+        <div class="title-left" id="ad-title">ACCESS DENIED</div>
+        <div class="title-right">COBALT SECURE NETWORK</div>
+      </div>
+      <div class="body">
+        <p class="flash-red">⚠ WARNING: UNAUTHORIZED ENTRY DETECTED ⚠</p>
+        <p>Error Code: <b>UA-101</b></p>
+        <p>Description: Your access attempt has been logged and flagged. You do not have clearance for this node.</p>
+        <p>Potential consequences include:</p>
+        <ul>
+          <li>System lockdown</li>
+          <li>Automatic trace & IP logging</li>
+          <li>Notification sent to COBALT security</li>
+          <li>Legal consequences under internal regulations</li>
+        </ul>
+        <p>All further attempts may result in network quarantine.</p>
+      </div>
+      <div style="text-align:right; margin-top:12px;">
+        <button class="btn-close" onclick="window.location.href='index.html'">CLOSE</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="crt-effects.js"></script>
+</body>
+</html>

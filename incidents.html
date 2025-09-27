@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>COBALT — INCIDENT REPORTS</title>
+<link rel="stylesheet" href="styles.css" />
+
+<audio id="clickSound" src="sfx/click.mp3" preload="auto"></audio>
+<audio id="openSound" src="sfx/open.mp3" preload="auto"></audio>
+<audio id="closeSound" src="sfx/close.mp3" preload="auto"></audio>
+
+<script>
+  const clickSound = document.getElementById('clickSound');
+  const openSound  = document.getElementById('openSound');
+  const closeSound = document.getElementById('closeSound');
+
+  // Play click sound for every click on the page
+  document.addEventListener('click', () => {
+    clickSound.currentTime = 0;
+    clickSound.play().catch(()=>{});
+  });
+
+  // Patch openMessage and closeOverlay to add sounds
+  (function(){
+    const origOpenMessage = window.openMessage;
+    const origCloseOverlay = window.closeOverlay;
+
+    // Re-declare functions in global scope
+    window.openMessage = function(id){
+      openSound.currentTime = 0;
+      openSound.play().catch(()=>{});
+      if (origOpenMessage) origOpenMessage(id);
+    };
+
+    window.closeOverlay = function(){
+      closeSound.currentTime = 0;
+      closeSound.play().catch(()=>{});
+      if (origCloseOverlay) origCloseOverlay();
+    };
+  })();
+</script>
+</head>
+<body>
+<script src="sound.js"></script>
+  <div class="noise"></div>
+  <div id="crtContainer" class="crt-container">
+    <div class="scan-line"></div>
+    <div class="distort-overlay"></div>
+
+    <div class="container">
+      <div class="frame" role="application" aria-label="Cobalt Incident Reports">
+        <div class="screen crt" id="screen" tabindex="0" aria-live="polite">
+<pre style="font-family: monospace; line-height: 1.15; font-size: 13px;">
+ ██████  ██████  ██████   █████  ██      ████████ 
+██      ██    ██ ██   ██ ██   ██ ██         ██    
+██      ██    ██ ██████  ███████ ██         ██    
+██      ██    ██ ██   ██ ██   ██ ██         ██    
+ ██████  ██████  ██████  ██   ██ ███████    ██    
+
+COBALT INCIDENT NODE — REPORTS
+
+ <p> <b>[<a href="accessdenied.html">IR-398</a>]  UNAUTHORIZED ENERGY DISCHARGE  |  Date: 2051-12-15</b>
+      Summary: Unauthorized energy discharge recorded at Site-B12. Personnel manifest incomplete. <b>[REPORT REDACTED]</b></p>
+
+ <p> <b>[<a href="accessdenied.html">IR-506</a>]  SPECIMEN-Δ19 CONTAINMENT BREACH  |  Date: 2050-06-03</b>
+      Summary: Specimen-Δ19 exhibited anomalous surface pitting when exposed to simulated coastal aerosols. Access requires Level-3 clearance.</p>
+
+ <p> <b>[<a href="accessdenied.html">IR-573</a>]  LATTICE-3 RESONANCE ANOMALY  |  Date: 2049-02-18</b>
+      Summary: Lattice-3 produced low-frequency resonances around synthetic alloys in vacuum. Majority of data redacted.</p>
+
+ <p> <b>[<a href="accessdenied.html">IR-611</a>]  AURORA-SERIES ELECTROMAGNETIC ANOMALY  |  Date: 2052-11-21</b>
+      Summary: Aurora prototype generated localized electromagnetic anomalies. Operational parameters archived under secure storage.</p>
+
+ <p> <b>[<a href="accessdenied.html">IR-659</a>]  OBSERVATION_LOGS CORRUPTION DETECTED  |  Date: 2053-03-08</b>
+      Summary: Observation logs from remote sensor array N-7 partially corrupted. Sector recovery recommended.</p>
+
+ <p> <b>[<a href="accessdenied.html">IR-724</a>]  DR. MAYA KOVALSKI TRANSMISSION  |  Date: 2053-03-08</b>
+      Summary: Lead materials scientist last recorded transmission: 'compromise imminent - prepare lattice fallback'. Files redacted.</p>
+
+ <p> <b>[<a href="accessdenied.html">IR-798</a>]  UNAUTHORIZED ACCESS ATTEMPT  |  Date: 2054-05-22</b>
+      Summary: Unauthorized access attempt detected in secure facility. Containment protocols initiated.</p>
+
+ <p> <b>[<a href="accessdenied.html">IR-841</a>]  SYSTEM MALFUNCTION  |  Date: 2054-06-10</b>
+      Summary: Critical system malfunction reported. Diagnostics in progress; estimated downtime: 48 hours.</p>
+
+  <p><b>[<a href="accessdenied.html">IR-875</a>]  UNAUTHORIZED DATA EXFILTRATION  |  Date: 2054-07-05</b>
+      Summary: Unauthorized data exfiltration detected. Security breach confirmed; investigation ongoing.</p>
+
+  <p><b>[<a href="accessdenied.html">IR-880</a>]  UNAUTHORIZED ACCESS ATTEMPT  |  Date: 2054-08-15</b>
+      Summary: Unauthorized access attempt detected in secure facility. Containment protocols initiated.</p>
+	  
+<p> <span>AVAILABLE NODES YOU MAY ACCESS</span>: [<a href="index.html">Terminal</a>, <a href="archives.html">Archive</a>, <a href="messages.html">Messages</a>, <a href="support.html">Support</a>...]'></p>
+</pre>
+        </div>
+      </div>
+    </div>
+<script src="crt-effects.js"></script>
+</body>
+</html>
