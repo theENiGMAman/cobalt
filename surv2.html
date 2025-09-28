@@ -1,0 +1,2215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>COBALT — SURVEILLANCE ARCHIVE</title>
+<link rel="stylesheet" href="styles.css" />
+<style>
+/* Inline styles for surveillance page */
+.screen.crt { font-family: monospace; font-size: 13px; line-height: 1.15; }
+
+/* Archive list layout */
+.archive-list {
+  display: block;
+  border-top: 1px solid rgba(0,0,0,0.25);
+  margin-top: 6px;
+}
+.archive-item {
+  display: flex;
+  gap: 10px;
+  padding: 8px 6px;
+  border-bottom: 1px dashed rgba(255,255,255,0.06);
+  align-items: center;
+  cursor: pointer;
+}
+.archive-item .title {
+  text-decoration: underline dotted;
+  color: #b9ff9a;
+}
+.archive-item .meta {
+  color: rgba(255,255,255,0.45);
+  font-size: 11px;
+  min-width: 170px;
+}
+
+/* Fake window for playback */
+.archive-window {
+  width: min(800px, 94%);
+  max-height: 80vh;
+  overflow: auto;
+  background: rgba(8,14,6,0.95);
+  border: 2px solid rgba(120,255,160,0.08);
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+  padding: 14px;
+  color: #dfffe0;
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.25;
+  border-radius: 6px;
+  position: relative;
+}
+.archive-window .titlebar {
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 8px;
+}
+.btn-close {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-family: monospace;
+  cursor: none;
+}
+
+/* ==========================
+   Custom CRT Audio Player
+   ========================== */
+.player {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: monospace;
+  font-size: 12px;
+  color: #33ff33;
+  margin-top: 10px;
+  cursor: none;
+}
+.player-btn {
+  background: transparent;
+  border: 1px solid #33ff33;
+  padding: 2px 6px;
+  color: #33ff33;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 12px;
+  cursor: none;
+}
+.player-progress {
+  flex: 1;
+  height: 6px;
+  background: rgba(50,255,100,0.15);
+  position: relative;
+  cursor: none;
+}
+.player-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0%;
+  background: #33ff33;
+}
+.player-time {
+  font-size: 11px;
+  color: #99ff99;
+}
+
+/* Overlay container covers whole page, stays with scroll */
+#overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh; /* makes it at least viewport height */
+  min-height: 100%; /* stretches to full document height */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  z-index: 6000;
+  pointer-events: none;
+}
+
+
+/* When active, allow interaction and dim the background */
+#overlay.active {
+  pointer-events: auto;
+}
+
+.archive-window {
+  position: sticky;
+  top: 50%;
+  transform: translateY(-50%);
+  margin: auto;
+  z-index: 6100;
+  max-height: 80vh;
+  overflow: auto;
+
+  /* Fake page dim with massive shadow */
+  box-shadow: 0 0 0 5000px rgba(0, 0, 0, 0.7);
+}
+
+
+</style>
+
+<audio id="clickSound" src="sfx/click.mp3" preload="auto"></audio>
+<audio id="openSound" src="sfx/open.mp3" preload="auto"></audio>
+<audio id="closeSound" src="sfx/close.mp3" preload="auto"></audio>
+</head>
+<body>
+<!-- CRT frame overlay -->
+<img class="crt-frame" src="img/crt_green_mask.png" alt="CRT Frame" />
+
+<!-- Hidden SVG filters -->
+<div style="display:none; position:absolute; top:-9999px;">
+  <svg xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <filter id="SphereMapTest" filterUnits="objectBoundingBox" x="-0.45" y="-1.29" width="1.6" height="3.5">
+        <feImage result="Map" xlink:href="https://chafalleiro.github.io/retromator/img/sphere_wide_1.png" />
+        <feDisplacementMap in="SourceGraphic" in2="map" scale="100" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+    </defs>
+  </svg>
+</div>
+
+<script src="sound.js"></script>
+<div class="noise"></div>
+
+<!-- CRT container -->
+<div id="crtContainer" class="crt-container">
+  <div class="scan-line"></div>
+  <div class="distort-overlay"></div>
+  <div id="custom-cursor"></div>
+
+  <div class="container">
+    <div class="frame" role="application" aria-label="Cobalt Surveillance">
+      <div class="screen crt" id="screen" tabindex="0" aria-live="polite">
+
+<pre>
+                                                                                                              
+ _____ _____ _____ _____ __  _____    _____ _____ _____ _____ _____ _____ __    __    _____ _____ _____ _____ 
+|     |     | __  |  _  |  ||_   _|  |   __|  |  | __  |  |  |   __|     |  |  |  |  |  _  |   | |     |   __|
+|   --|  |  | __ -|     |  |__| |    |__   |  |  |    -|  |  |   __|-   -|  |__|  |__|     | | | |   --|   __|
+|_____|_____|_____|__|__|_____|_|    |_____|_____|__|__|\___/|_____|_____|_____|_____|__|__|_|___|_____|_____|
+                                                                                                              
+
+COBALT SURVEILLANCE — AUDIO ARCHIVE
+</pre>
+<p><span>AVAILABLE NODES</span>: [<a href="messages.html">Messages</a>, <a href="archives.html">Archive</a>, <a href="index.html">Terminal</a>, <a href="darty.html">D.A.R.T.Y</a>...]</p>
+
+<div class="archive-list" role="list" aria-label="Surveillance recordings">
+
+
+  <div class="archive-item" role="listitem" tabindex="0" data-id="s1">
+    <div class="meta">SRC: FM-HACK</div>
+    <div class="title">[ADVERT] — Bandit Camp Warranty</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-08-01</div>
+  </div>
+
+  <div class="archive-item" role="listitem" tabindex="0" data-id="s2">
+    <div class="meta">SRC: FM-HACK</div>
+    <div class="title">[ADVERT] — Wild Bill's Outpost</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>
+  
+  <div class="archive-item" role="listitem" tabindex="0" data-id="s3">
+    <div class="meta">SRC: intercepted</div>
+    <div class="title">[COMMS] — Lost signal</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>
+  
+  <div class="archive-item" role="listitem" tabindex="0" data-id="s4">
+    <div class="meta">SRC: FM-HACK</div>
+    <div class="title">[ADVERT] — Dang Darlene's Loveshack</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>
+  
+  <div class="archive-item" role="listitem" tabindex="0" data-id="s5">
+    <div class="meta">SRC: ORB-LNK</div>
+    <div class="title">[PSA] — Obey the Grid</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>
+
+  <div class="archive-item" role="listitem" tabindex="0" data-id="s6">
+    <div class="meta">SRC: FM-HACK</div>
+    <div class="title">[ADVERT] — Horseshare Plus</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>
+
+  <div class="archive-item" role="listitem" tabindex="0" data-id="s7">
+    <div class="meta">SRC: FM-HACK</div>
+    <div class="title">[ADVERT] — Gravy Pete's Pies</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>  
+
+  <div class="archive-item" role="listitem" tabindex="0" data-id="s8">
+    <div class="meta">SRC: FM-HACK</div>
+    <div class="title">[ADVERT] — Cletus' All Purpose Juice</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>  
+  
+  <div class="archive-item" role="listitem" tabindex="0" data-id="s9">
+    <div class="meta">SRC: FM-PROP</div>
+    <div class="title">[ADVERT] — Cobalt Blue Beer</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>  
+
+  <div class="archive-item" role="listitem" tabindex="0" data-id="s10">
+    <div class="meta">SRC: comm-sat-07</div>
+    <div class="title">[COMMS] — X14-B</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>  
+
+   <div class="archive-item" role="listitem" tabindex="0" data-id="s11">
+    <div class="meta">SRC: MO.BUG</div>
+    <div class="title">[PHONE] — Illicit conversation 11/3</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>   
+  
+   <div class="archive-item" role="listitem" tabindex="0" data-id="s12">
+    <div class="meta">SRC: FM-HACK</div>
+    <div class="title">[ADVERT] — Gov. Grade Not Listening Hat</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>   
+  
+   <div class="archive-item" role="listitem" tabindex="0" data-id="s13">
+    <div class="meta">SRC: MO.BUG</div>
+    <div class="title">[PHONE] — Illicit conversation 11/3</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>
+
+   <div class="archive-item" role="listitem" tabindex="0" data-id="s14">
+    <div class="meta">SRC: MO.BUG</div>
+    <div class="title">[PHONE] — Illicit conversation 11/3</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>
+
+    <div class="archive-item" role="listitem" tabindex="0" data-id="s15">
+    <div class="meta">SRC: FM-HACK</div>
+    <div class="title">[ADVERT] — Shootin' Shelly's</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>   
+
+    <div class="archive-item" role="listitem" tabindex="0" data-id="s16">
+    <div class="meta">SRC: FM-HACK</div>
+    <div class="title">[ADVERT] — Big Bubba's Tactical Bibs</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>   
+
+    <div class="archive-item" role="listitem" tabindex="0" data-id="s17">
+    <div class="meta">SRC: FM-HACK</div>
+    <div class="title">[ADVERT] — Sheriff's Legal-ish Fireworks</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>
+
+    <div class="archive-item" role="listitem" tabindex="0" data-id="s18">
+    <div class="meta">SRC: FM-HACK</div>
+    <div class="title">[ADVERT] — Beula Irene’s BBQ and Grill</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>
+  
+  <div class="archive-item" role="listitem" tabindex="0" data-id="s19">
+    <div class="meta">SRC: FM-HACK</div>
+    <div class="title">[ADVERT] — Billy Ray's Swamp Juice</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>
+  
+  <div class="archive-item" role="listitem" tabindex="0" data-id="s20">
+    <div class="meta">SRC: MO.BUG</div>
+    <div class="title">[PHONE] — Illicit conversation 11/3</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>
+  
+  <div class="archive-item" role="listitem" tabindex="0" data-id="s21">
+    <div class="meta">SRC: MO.BUG</div>
+    <div class="title">[PHONE] — Illicit conversation 11/3</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>
+  
+  <div class="archive-item" role="listitem" tabindex="0" data-id="s22">
+    <div class="meta">SRC: FM-HACK</div>
+    <div class="title">[ADVERT] — Grandma Edna’s Miracle Denture Glue and Gator Bait</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s23">
+    <div class="meta">SRC: FM-HACK</div>
+    <div class="title">[ADVERT] — Insurance Company...</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>
+  
+ <div class="archive-item" role="listitem" tabindex="0" data-id="s24">
+    <div class="meta">SRC: FM-HACK</div>
+    <div class="title">[ADVERT] — Mr Dickies Tiny Little Dickables</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div> 
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s25">
+    <div class="meta">SRC: MO.BUG</div>
+    <div class="title">[PHONE] — Illicit conversation 11/3</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>
+  
+<div class="archive-item" role="listitem" tabindex="0" data-id="s26">
+    <div class="meta">SRC: FM-HACK</div>
+    <div class="title">[ADVERT] — Pastor Cain's Portable Church and Grill</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>
+ 
+ <div class="archive-item" role="listitem" tabindex="0" data-id="s27">
+    <div class="meta">SRC: MO.BUG</div>
+    <div class="title">[ADVERT] — 3333333333333</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>  
+  
+  <div class="archive-item" role="listitem" tabindex="0" data-id="s28">
+    <div class="meta">SRC: MO.BUG</div>
+    <div class="title">[PHONE] — Illicit conversation 11/3</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>  
+  
+  <div class="archive-item" role="listitem" tabindex="0" data-id="s29">
+    <div class="meta">SRC: MO.BUG</div>
+    <div class="title">[PHONE] — Illicit conversation 11/3</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>  
+  
+  <div class="archive-item" role="listitem" tabindex="0" data-id="s30">
+    <div class="meta">SRC: MO.BUG</div>
+    <div class="title">[PHONE] — Illicit conversation 11/3</div>
+    <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-15</div>
+  </div>  
+ 
+ <div class="archive-item" role="listitem" tabindex="0" data-id="s31">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Comrades Canned Meats</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-16</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s32">
+  <div class="meta">SRC: MO.BUG</div>
+  <div class="title">[PHONE] — Illicit conversation 11/4</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-16</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s33">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Jim Bobs Flame Turrets</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-16</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s34">
+  <div class="meta">SRC: FM-PROP</div>
+  <div class="title">[COMMS] — Satellite ping lost</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-16</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s35">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Grubsniffers Trailer</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-16</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s36">
+  <div class="meta">SRC: ORB-LNK</div>
+  <div class="title">[PSA] — Obey the Grid</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-16</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s37">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Old Man Pervis' Weather Guarentee</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-17</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s38">
+  <div class="meta">SRC: comm-sat-11</div>
+  <div class="title">[COMMS] — X15-C Signal</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-17</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s39">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Skeeter's Portable Safezone</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-17</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s40">
+  <div class="meta">SRC: MO.BUG</div>
+  <div class="title">[PHONE] — Illicit conversation 11/5</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-17</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s41">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Radioactive Pickles</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-17</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s42">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Pastor Cains Mail Order Exorcisms</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-18</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s43">
+  <div class="meta">SRC: comm-sat-12</div>
+  <div class="title">[COMMS] — Beacon interference</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-18</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s44">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Pastor Cains Church of Eternal Sunshine</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-18</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s45">
+  <div class="meta">SRC: ORB-LNK</div>
+  <div class="title">[PSA] — Check Your Sector</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-18</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s46">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Barrel of Screaming Goats</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-18</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s47">
+  <div class="meta">SRC: MO.BUG</div>
+  <div class="title">[PHONE] — Illicit conversation 11/6</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-18</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s48">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Maureen's Psychic Bailbonds</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-19</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s49">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Dirtman Dan's Miracle Mud</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-19</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s50">
+  <div class="meta">SRC: FM-PROP</div>
+  <div class="title">[COMMS] — Lost comms signal</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-19</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s51">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Uncle Buck's Organic Racoon Juice</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-19</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s52">
+  <div class="meta">SRC: MO.BUG</div>
+  <div class="title">[PHONE] — Illicit conversation 11/7</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-19</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s53">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Colonel Rusty's Rat on a Stick</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-20</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s54">
+  <div class="meta">SRC: ORB-LNK</div>
+  <div class="title">[PSA] — Sector Lockdown Alert</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-20</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s55">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Mr. Dickies Radioactive Smoked Buttholes</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-20</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s56">
+  <div class="meta">SRC: comm-sat-15</div>
+  <div class="title">[COMMS] — Satellite downlink</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-20</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s57">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Bentons Thanksgiving Dinners</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-20</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s58">
+  <div class="meta">SRC: MO.BUG</div>
+  <div class="title">[PHONE] — Illicit conversation 11/8</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-20</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s59">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Crypt-O-Coins</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-21</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s60">
+  <div class="meta">SRC: FM-PROP</div>
+  <div class="title">[COMMS] — Signal distortion</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-21</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s61">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Influencer Survival Kits</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-21</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s62">
+  <div class="meta">SRC: ORB-LNK</div>
+  <div class="title">[PSA] — Update Your Access Codes</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-21</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s63">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Patriot Plus Streaming</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-21</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s64">
+  <div class="meta">SRC: MO.BUG</div>
+  <div class="title">[PHONE] — Illicit conversation 11/9</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-21</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s65">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Office Coffins</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-22</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s66">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Papa Gutbuckets Human Jerky</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-22</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s67">
+  <div class="meta">SRC: FM-PROP</div>
+  <div class="title">[COMMS] — Grid interference detected</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-22</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s68">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Granny Lupita's Intimacy Ointment</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-22</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s69">
+  <div class="meta">SRC: MO.BUG</div>
+  <div class="title">[PHONE] — Illicit conversation 11/10</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-22</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s70">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Meemaws Homestyle Brain Pudding</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-23</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s71">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Pastor Cains Megachurch VR</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-23</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s72">
+  <div class="meta">SRC: comm-sat-18</div>
+  <div class="title">[COMMS] — Interference spike detected</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-23</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s73">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Barry McCociner's Fertile Fertilizer</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-23</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s74">
+  <div class="meta">SRC: MO.BUG</div>
+  <div class="title">[PHONE] — Illicit conversation 11/11</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-23</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s75">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Uncle Larry's Toe Jam Lotion</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-24</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s76">
+  <div class="meta">SRC: FM-PROP</div>
+  <div class="title">[COMMS] — Lost satellite feed</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-24</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s77">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Uncle Uncle's Moist Towels</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-24</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s78">
+  <div class="meta">SRC: MO.BUG</div>
+  <div class="title">[PHONE] — Illicit conversation 11/12</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-24</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s79">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Grandpa Jeff's Autoturrent Defense</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-25</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s80">
+  <div class="meta">SRC: comm-sat-21</div>
+  <div class="title">[COMMS] — Emergency alert broadcast</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-25</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s81">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Trudy Mae's Used Condom Depot</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-25</div>
+</div>
+
+<div class="archive-item" role="listitem" tabindex="0" data-id="s82">
+  <div class="meta">SRC: FM-HACK</div>
+  <div class="title">[ADVERT] — Gizzard Jerry's Meatswap Emporium</div>
+  <div class="date" style="margin-left:auto; color:rgba(255,255,255,0.5)">2054-07-26</div>
+</div>
+
+ 
+</div>
+
+<!-- Overlay + playback windows -->
+<div id="overlay" class="overlay" aria-hidden="true">
+
+
+  <article id="s1" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s1-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s1-title">[ADVERT] — Bandit Camp Warranty</div>
+      <div>SRC: FM-HACK — 2054-08-01</div>
+    </div>
+    <p>Consumer messaging intercepted. Promotes risky behavior under guise of protection. May contribute to limb casualties and local unrest. Monitor uptake among fringe populations.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/bandit_camp_warranty.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 0:27</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>
+
+  <article id="s2" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s2-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s2-title">[ADVERT] — Wild Bills Outpost</div>
+      <div>SRC: FM-HACK — 2054-07-15</div>
+    </div>
+    <p>Intercepted broadcast encourages armed escalation and reckless behavior. Commercial messaging normalizes violence and may incite local disturbances. Flag for follow-up monitoring of civilian compliance and incident reports.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/wild_bills_outpost.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 0:39</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>
+  
+  <article id="s3" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s3-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s3-title">[ADVERT] — Wild Bills Outpost</div>
+      <div>SRC: intercepted — 2054-07-15</div>
+    </div>
+    <p>Public broadcast urging compliance with COBALT’s energy rationing initiative. Identified as propaganda sample.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/wild_bills_outpost.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 0:39</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>  
+  
+
+  <article id="s4" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s4-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s4-title">[ADVERT] — Dang Darlene's Loveshack</div>
+      <div>SRC: FM-HACK — 2054-07-15</div>
+    </div>
+    <p>Broadcast promotes unsanitary and morally questionable activities. Messaging normalizes illicit behavior and potential disease vectors. Civilians exposed may demonstrate lowered social compliance; monitor local activity patterns.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/dang_darlenes_loveshack.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 0:48</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>
+
+
+  <article id="s5" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s5-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s5-title">[ADVERT] — Dang Darlene's Loveshack</div>
+      <div>SRC: intercepted — 2054-07-15</div>
+    </div>
+    <p>Public broadcast urging compliance with COBALT’s energy rationing initiative. Identified as propaganda sample.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/dang_darlenes_loveshack.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 0:48</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>    
+
+
+  <article id="s6" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s6-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s6-title">[ADVERT] — Horseshare Plus</div>
+      <div>SRC: FM-HACK — 2054-07-15</div>
+    </div>
+    <p>Monitored uptake of horse-streaming service. Civilians may be influenced toward unusual property claims; track purchases and delivery endpoints.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/Horseshare_Plus.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 0:34</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>  
+
+
+  <article id="s7" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s7-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s7-title">[ADVERT] — Gravy Pete's Pies</div>
+      <div>SRC: FM-HACK — 2054-07-15</div>
+    </div>
+    <p>Audio exhibits predatory undertones and deliberate manipulation. Civilians are potentially in danger. Repeated consumption may correlate with unexplained disappearances. Content flagged as high-risk.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/Gravy_Petes_Pies.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 1:09</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>  
+
+  <article id="s8" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s8-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s8-title">[ADVERT] — Cletus' All Purpose Juice</div>
+      <div>SRC: FM-HACK — 2054-07-15</div>
+    </div>
+    <p>Audio indicates reckless endorsements of unsafe practices. Civilian health and property may be at risk. Exposure causes confusion, and potential mutation. Flagged for potential misuse and hazardous influence.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/Cletuss_All_Purpose_Juice.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 0:53</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>  
+
+  <article id="s9" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s9-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s9-title">[ADVERT] — Cobalt Blue Beer</div>
+      <div>SRC: FM-PROP — 2054-07-15</div>
+    </div>
+    <p>Internal note: Audio broadcast designed to normalize excessive consumption and cultivate loyalty through relatable humor. Encouraging repeat purchases and dependence. Content to desensitize listeners to harmful behavior.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/cobalt_blue_ad.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 0:45</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>  
+
+  <article id="s10" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s10-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s10-title">[ADVERT] — Cobalt Blue Beer</div>
+      <div>SRC: FM-PROP — 2054-07-15</div>
+    </div>
+    <p>Public broadcast urging compliance with COBALT’s energy rationing initiative. Identified as propaganda sample.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/cobalt_blue_ad.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 0:45</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article> 
+
+  <article id="s11" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s11-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s11-title">[ADVERT] — Cobalt Blue Beer</div>
+      <div>SRC: FM-PROP — 2054-07-15</div>
+    </div>
+    <p>Public broadcast urging compliance with COBALT’s energy rationing initiative. Identified as propaganda sample.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/cobalt_blue_ad.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 0:45</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article> 
+
+  <article id="s12" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s12-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s12-title">[ADVERT] — Gov. Grade Not Listening Hat</div>
+      <div>SRC: FM-HACK — 2054-07-15</div>
+    </div>
+    <p>Intercepted fringe-market broadcast promoting “anti-surveillance” headgear. Product plays into paranoia while ironically increasing signal reflectivity; wearers become easier to geolocate and catalogue. Monitoring for profiling and controlled distribution.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/government_grade_not_listening_hat.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 0:45</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article> 
+  
+    <article id="s13" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s13-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s13-title">[ADVERT] — Gov. Grade Not Listening Hat</div>
+      <div>SRC: FM-HACK — 2054-07-15</div>
+    </div>
+    <p>Public broadcast urging compliance with COBALT’s energy rationing initiative. Identified as propaganda sample.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/government_grade_not_listening_hat.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 0:45</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article> 
+
+  <article id="s14" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s14-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s14-title">[ADVERT] — Gov. Grade Not Listening Hat</div>
+      <div>SRC: FM-HACK — 2054-07-15</div>
+    </div>
+    <p>Public broadcast urging compliance with COBALT’s energy rationing initiative. Identified as propaganda sample.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/government_grade_not_listening_hat.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 0:45</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article> 
+
+  <article id="s15" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s15-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s15-title">[ADVERT] — Shootin' Shelly's</div>
+      <div>SRC: FM-HACK — 2054-07-15</div>
+    </div>
+    <p>Local merchant spot captured on open bands. Audio indicates militia-friendly clientele and live firearm demonstrations. Marked for follow-up — possible nexus for unlicensed arms distribution and violent incidents.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/Shootin_Shellys.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 0:30</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article> 
+
+  <article id="s16" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s16-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s16-title">[ADVERT] — Big Bubba's Tactical Bibs</div>
+      <div>SRC: FM-HACK — 2054-07-15</div>
+    </div>
+    <p>Surveillance notes: Broadcast glorifies survivalist excess and weaponized eating habits. May encourage unsafe behavior. Keep an eye on regional adoption rates and incidents linked to high-calorie, high-gear consumption.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/Big_bubbas_tactical_bibs.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 0:46</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article> 
+
+  <article id="s17" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s17-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s17-title">[ADVERT] — Sheriff's Legal-ish Fireworks</div>
+      <div>SRC: FM-HACK — 2054-07-15</div>
+    </div>
+    <p>Local law‑man moonlighting as pyrotechnics supplier — plausible deniability built into every sale. Cheap explosives marketed as “community morale” — potential vector for civil disturbances.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/Legalish_Fireworks.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 0:23</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article> 
+
+
+  <article id="s18" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s18-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s18-title">[ADVERT] — Beula Irene’s BBQ and Grill</div>
+      <div>SRC: FM-HACK — 2054-07-15</div>
+    </div>
+    <p>Local roadside pit with questionable supply chains — recurring reports of “special” weekend batches and off‑hours deliveries. Frequent late‑night customers are suspicious; flag for food safety incidents and informal barter networks.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/Beulas_BBQ.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 0:46</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article> 
+  
+   <article id="s19" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s19-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s19-title">[ADVERT] — Billy Ray's Swamp Juice</div>
+      <div>SRC: FM-HACK — 2054-07-15</div>
+    </div>
+    <p>Amateur distillery operating out of a backwater property. Samples suggest high bacterial content, frequent presence of wildlife contaminants, and unpredictable chemical reactions.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/Swamp_Juice.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 0:45</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article> 
+  
+     <article id="s20" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s20-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s20-title">[ADVERT] — Billy Ray's Swamp Juice</div>
+      <div>SRC: FM-HACK — 2054-07-15</div>
+    </div>
+    <p>Amateur distillery operating out of a backwater property. Samples suggest high bacterial content, frequent presence of wildlife contaminants, and unpredictable chemical reactions.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/Swamp_Juice.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 0:45</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article> 
+  
+     <article id="s21" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s21-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s21-title">[ADVERT] — Billy Ray's Swamp Juice</div>
+      <div>SRC: FM-HACK — 2054-07-15</div>
+    </div>
+    <p>Amateur distillery operating out of a backwater property. Samples suggest high bacterial content, frequent presence of wildlife contaminants, and unpredictable chemical reactions.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/Swamp_Juice.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 0:45</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article> 
+ 
+<article id="s22" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s22-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s22-title">[ADVERT] — Grandma Edna’s Miracle Denture Glue and Gator Bait</div>
+      <div>SRC: FM-HACK — 2054-07-15</div>
+    </div>
+    <p>Product claims to blend oral fixatives with wildlife lures. Potentially hazardous if ingested. Generates minor wildlife disturbances and community chatter. Keep under observation.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/Gator_Bait.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 1:06</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>
+  
+  <article id="s23" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s23-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s23-title">[ADVERT] — Insurance Company</div>
+      <div>SRC: FM-HACK — 2054-07-15</div>
+    </div>
+    <p>Surveillance note: Aggressive anti-insurance PSA. Emphasizes self-reliance and community paranoia. Likely to provoke anger, confusion, and property damage reports. Monitored for incitement and extreme language use.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/not_an_insurance_company.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 0:17</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>
+
+<article id="s24" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s24-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s24-title">[ADVERT] — Mr Dickies Tiny Little Dickables</div>
+      <div>SRC: FM-HACK — 2054-07-15</div>
+    </div>
+    <p>Marketed as a novelty confection, but content and branding raise concerns. Encourages ingestion of unusual substances in a suggestive manner.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/mr_dickies.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 0:27</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>    
+  
+ <article id="s25" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s25-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s25-title">[ADVERT] — Mr Dickies Tiny Little Dickables</div>
+      <div>SRC: FM-HACK — 2054-07-15</div>
+    </div>
+    <p>Marketed as a novelty confection, but content and branding raise concerns. Encourages ingestion of unusual substances in a suggestive manner.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/mr_dickies.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 0:27</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>   
+ 
+  <article id="s26" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s26-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s26-title">[ADVERT] — Pastor Cain's Portable Church and Grill</div>
+      <div>SRC: FM-HACK — 2054-07-15</div>
+    </div>
+    <p>Hybrid worship/consumer unit distributed nationwide. Created by Pastor Cain, real name; █████████████. Bacon Bible inserts suspected to contain ████████████████. <b>Risk Level:</b> HIGH. Possible ██████. <b>Action:</b> Maintain continuous observation. All outbound orders traced. Escalate to Tier-3 containment if sales exceed ██████.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/portable_church_and_grill.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 1:11</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>   
+ 
+   <article id="s27" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s27-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s27-title">[ADVERT] — Pastor Cain's Portable Church and Grill</div>
+      <div>SRC: FM-HACK — 2054-07-15</div>
+    </div>
+    <p>Hybrid worship/consumer unit distributed nationwide. Created by Pastor Cain, real name; █████████████. Bacon Bible inserts suspected to contain ████████████████. <b>Risk Level:</b> HIGH. Possible ██████. <b>Action:</b> Maintain continuous observation. All outbound orders traced. Escalate to Tier-3 containment if sales exceed ██████.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/portable_church_and_grill.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 1:11</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>
+ 
+   <article id="s28" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s28-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s28-title">[ADVERT] — Pastor Cain's Portable Church and Grill</div>
+      <div>SRC: FM-HACK — 2054-07-15</div>
+    </div>
+    <p>Hybrid worship/consumer unit distributed nationwide. Created by Pastor Cain, real name; █████████████. Bacon Bible inserts suspected to contain ████████████████. <b>Risk Level:</b> HIGH. Possible ██████. <b>Action:</b> Maintain continuous observation. All outbound orders traced. Escalate to Tier-3 containment if sales exceed ██████.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/portable_church_and_grill.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 1:11</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>
+ 
+   <article id="s29" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s29-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s29-title">[ADVERT] — Pastor Cain's Portable Church and Grill</div>
+      <div>SRC: FM-HACK — 2054-07-15</div>
+    </div>
+    <p>Hybrid worship/consumer unit distributed nationwide. Created by Pastor Cain, real name; █████████████. Bacon Bible inserts suspected to contain ████████████████. <b>Risk Level:</b> HIGH. Possible ██████. <b>Action:</b> Maintain continuous observation. All outbound orders traced. Escalate to Tier-3 containment if sales exceed ██████.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/portable_church_and_grill.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 1:11</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>
+ 
+   <article id="s30" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s30-title" style="display:none;">
+    <div class="titlebar">
+      <div id="s30-title">[ADVERT] — Pastor Cain's Portable Church and Grill</div>
+      <div>SRC: FM-HACK — 2054-07-15</div>
+    </div>
+    <p>Hybrid worship/consumer unit distributed nationwide. Created by Pastor Cain, real name; █████████████. Bacon Bible inserts suspected to contain ████████████████. <b>Risk Level:</b> HIGH. Possible ██████. <b>Action:</b> Maintain continuous observation. All outbound orders traced. Escalate to Tier-3 containment if sales exceed ██████.</p>
+
+    <!-- Custom audio player -->
+    <div class="player" data-audio="audio/ads/portable_church_and_grill.mp3">
+      <button class="player-btn" data-play>▶ PLAY</button>
+      <div class="player-progress"><div class="player-bar"></div></div>
+      <span class="player-time">0:00 / 1:11</span>
+    </div>
+
+    <div style="margin-top:12px; text-align:right;">
+      <button class="btn-close" data-close>Close</button>
+    </div>
+  </article>
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ <article id="s31" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s31-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s31-title">[ADVERT] — Comrades Canned Meats</div>
+    <div>SRC: FM-HACK — 2054-07-16</div>
+  </div>
+  <p>Novelty canned meat product; humorous collectible.</p>
+  <div class="player" data-audio="audio/ads/comrades_canned_meats.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s32" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s32-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s32-title">[PHONE] — Illicit conversation 11/4</div>
+    <div>SRC: MO.BUG — 2054-07-16</div>
+  </div>
+  <p>Intercepted phone communication; details classified.</p>
+  <div class="player" data-audio="audio/phone/illicit_conversation_11_4.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s33" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s33-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s33-title">[ADVERT] — Jim Bobs Flame Turrets</div>
+    <div>SRC: FM-HACK — 2054-07-17</div>
+  </div>
+  <p>Portable flame turrets; novelty home defense item.</p>
+  <div class="player" data-audio="audio/ads/jim_bobs_flame_turrets.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s34" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s34-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s34-title">[COMMS] — Lost signal X1</div>
+    <div>SRC: intercepted — 2054-07-17</div>
+  </div>
+  <p>Intercepted communications; signal partially corrupted.</p>
+  <div class="player" data-audio="audio/comms/lost_signal_x1.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s35" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s35-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s35-title">[ADVERT] — Grubsniffers Trailer</div>
+    <div>SRC: FM-HACK — 2054-07-18</div>
+  </div>
+  <p>Portable trailer for transporting grubs; novelty outdoor item.</p>
+  <div class="player" data-audio="audio/ads/grubsniffers_trailer.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s36" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s36-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s36-title">[PHONE] — Illicit conversation 11/5</div>
+    <div>SRC: MO.BUG — 2054-07-18</div>
+  </div>
+  <p>Phone conversation intercepted for intelligence purposes.</p>
+  <div class="player" data-audio="audio/phone/illicit_conversation_11_5.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s37" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s37-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s37-title">[ADVERT] — Old Man Pervis' Weather Guarentee</div>
+    <div>SRC: FM-HACK — 2054-07-19</div>
+  </div>
+  <p>Guaranteed perfect weather; novelty product with humorous claims.</p>
+  <div class="player" data-audio="audio/ads/old_man_pervis_weather.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s38" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s38-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s38-title">[COMMS] — X15-B Transmission</div>
+    <div>SRC: comm-sat-07 — 2054-07-19</div>
+  </div>
+  <p>Shortwave communication intercepted; content classified.</p>
+  <div class="player" data-audio="audio/comms/x15b_transmission.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s39" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s39-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s39-title">[ADVERT] — Skeeter's Portable Safezone</div>
+    <div>SRC: FM-HACK — 2054-07-20</div>
+  </div>
+  <p>Mobile personal safety pod; novelty item.</p>
+  <div class="player" data-audio="audio/ads/skeeters_safezone.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s40" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s40-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s40-title">[PHONE] — Illicit conversation 11/6</div>
+    <div>SRC: MO.BUG — 2054-07-20</div>
+  </div>
+  <p>Intercepted phone call; context sensitive.</p>
+  <div class="player" data-audio="audio/phone/illicit_conversation_11_6.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s41" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s41-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s41-title">[ADVERT] — Radioactive Pickles</div>
+    <div>SRC: FM-HACK — 2054-07-21</div>
+  </div>
+  <p>Novelty pickles infused with fictional radiation effects; for humor only.</p>
+  <div class="player" data-audio="audio/ads/radioactive_pickles.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s42" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s42-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s42-title">[ADVERT] — Pastor Cains Mail Order Exorcisms</div>
+    <div>SRC: FM-HACK — 2054-07-21</div>
+  </div>
+  <p>Mail-order exorcism kit; novelty religious service parody.</p>
+  <div class="player" data-audio="audio/ads/pastor_cains_mail_order_exorcisms.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s43" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s43-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s43-title">[PHONE] — Illicit conversation 11/7</div>
+    <div>SRC: MO.BUG — 2054-07-21</div>
+  </div>
+  <p>Intercepted phone call; context sensitive.</p>
+  <div class="player" data-audio="audio/phone/illicit_conversation_11_7.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s44" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s44-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s44-title">[ADVERT] — Pastor Cains Church of Eternal Sunshine</div>
+    <div>SRC: FM-HACK — 2054-07-22</div>
+  </div>
+  <p>Novelty church experience; VR-style spiritual guidance kit.</p>
+  <div class="player" data-audio="audio/ads/pastor_cains_church_eternal_sunshine.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s45" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s45-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s45-title">[COMMS] — X17-B Transmission</div>
+    <div>SRC: comm-sat-07 — 2054-07-22</div>
+  </div>
+  <p>Intercepted communication; partially decoded with unclear context.</p>
+  <div class="player" data-audio="audio/comms/x17b_transmission.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s46" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s46-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s46-title">[ADVERT] — Barrel of Screaming Goats</div>
+    <div>SRC: FM-HACK — 2054-07-23</div>
+  </div>
+  <p>Humorous novelty item; barrel of toy goats with sound effects.</p>
+  <div class="player" data-audio="audio/ads/barrel_screaming_goats.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s47" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s47-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s47-title">COMMS] — X17-B Transmission</div>
+    <div>SRC: comm-sat-07 — 2054-07-22</div>
+  </div>
+  <p>Intercepted communication; partially decoded with unclear context.</p>
+  <div class="player" data-audio="audio/comms/x17b_transmission.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s48" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s48-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s48-title">[ADVERT] — Maureen's Psychic Bailbonds</div>
+    <div>SRC: FM-HACK — 2054-07-24</div>
+  </div>
+  <p>Provides mystical assistance for bail situations; results may vary.</p>
+  <div class="player" data-audio="audio/ads/maureens_psychic_bailbonds.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s49" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s49-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s49-title">[ADVERT] — Dirtman Dan's Miracle Mud</div>
+    <div>SRC: FM-HACK — 2054-07-25</div>
+  </div>
+  <p>Special novelty mud with humorous claims of miraculous results.</p>
+  <div class="player" data-audio="audio/ads/dirtman_dan_miracle_mud.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s50" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s50-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s50-title">[COMMS] — X18 Transmission</div>
+    <div>SRC: comm-sat-07 — 2054-07-24</div>
+  </div>
+  <p>Shortwave intercepted transmission; details partially decoded.</p>
+  <div class="player" data-audio="audio/comms/x18_transmission.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s51" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s51-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s51-title">[ADVERT] — Uncle Buck's Organic Racoon Juice</div>
+    <div>SRC: FM-HACK — 2054-07-26</div>
+  </div>
+  <p>Novelty drink made from fictional organic raccoon extract.</p>
+  <div class="player" data-audio="audio/ads/uncle_buck_racoon_juice.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s52" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s52-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s52-title">[PHONE] — Illicit conversation 11/9</div>
+    <div>SRC: MO.BUG — 2054-07-25</div>
+  </div>
+  <p>Intercepted phone call; content confidential.</p>
+  <div class="player" data-audio="audio/phone/illicit_conversation_11_9.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s53" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s53-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s53-title">[ADVERT] — Colonel Rusty's Rat on a Stick</div>
+    <div>SRC: FM-HACK — 2054-07-27</div>
+  </div>
+  <p>Humorous novelty snack; sticks with a toy rat.</p>
+  <div class="player" data-audio="audio/ads/colonel_rusty_rat_stick.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s54" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s54-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s54-title">[COMMS] — X19 Transmission</div>
+    <div>SRC: comm-sat-07 — 2054-07-26</div>
+  </div>
+  <p>Intercepted transmission with partial content decoded.</p>
+  <div class="player" data-audio="audio/comms/x19_transmission.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s55" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s55-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s55-title">[ADVERT] — Mr. Dickies Radioactive Smoked Buttholes</div>
+    <div>SRC: FM-HACK — 2054-07-28</div>
+  </div>
+  <p>Gag novelty meat product; humorous branding.</p>
+  <div class="player" data-audio="audio/ads/mr_dickies_radioactive_smoked.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s56" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s56-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s56-title">[PHONE] — Illicit conversation 11/10</div>
+    <div>SRC: MO.BUG — 2054-07-27</div>
+  </div>
+  <p>Intercepted phone conversation; context sensitive.</p>
+  <div class="player" data-audio="audio/phone/illicit_conversation_11_10.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s57" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s57-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s57-title">[ADVERT] — Bentons Thanksgiving Dinners</div>
+    <div>SRC: FM-HACK — 2054-07-29</div>
+  </div>
+  <p>Novelty packaged Thanksgiving dinner kit; humorous collectible.</p>
+  <div class="player" data-audio="audio/ads/bentons_thanksgiving_dinners.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s58" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s58-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s58-title">[COMMS] — X20-B Transmission</div>
+    <div>SRC: comm-sat-07 — 2054-07-28</div>
+  </div>
+  <p>Partially decoded communication; transmission intercepted.</p>
+  <div class="player" data-audio="audio/comms/x20b_transmission.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s59" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s59-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s59-title">[ADVERT] — Crypt-O-Coins</div>
+    <div>SRC: FM-HACK — 2054-07-30</div>
+  </div>
+  <p>Novelty cryptocurrency kit; collectible and humorous.</p>
+  <div class="player" data-audio="audio/ads/crypt_o_coins.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s60" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s60-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s60-title">[PHONE] — Illicit conversation 11/11</div>
+    <div>SRC: MO.BUG — 2054-07-29</div>
+  </div>
+  <p>Intercepted phone call; content sensitive.</p>
+  <div class="player" data-audio="audio/phone/illicit_conversation_11_11.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s61" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s61-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s61-title">[ADVERT] — Influencer Survival Kits</div>
+    <div>SRC: FM-HACK — 2054-07-31</div>
+  </div>
+  <p>Novelty kit designed to “survive” social media trends.</p>
+  <div class="player" data-audio="audio/ads/influencer_survival_kits.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s62" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s62-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s62-title">[COMMS] — X21 Transmission</div>
+    <div>SRC: comm-sat-07 — 2054-07-30</div>
+  </div>
+  <p>Intercepted broadcast; context partially understood.</p>
+  <div class="player" data-audio="audio/comms/x21_transmission.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s63" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s63-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s63-title">[ADVERT] — Patriot Plus Streaming</div>
+    <div>SRC: FM-HACK — 2054-08-01</div>
+  </div>
+  <p>Humorous streaming service subscription kit; novelty item.</p>
+  <div class="player" data-audio="audio/ads/patriot_plus_streaming.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s64" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s64-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s64-title">[PHONE] — Illicit conversation 11/12</div>
+    <div>SRC: MO.BUG — 2054-07-31</div>
+  </div>
+  <p>Intercepted conversation; classified content.</p>
+  <div class="player" data-audio="audio/phone/illicit_conversation_11_12.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s65" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s65-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s65-title">[ADVERT] — Office Coffins</div>
+    <div>SRC: FM-HACK — 2054-08-02</div>
+  </div>
+  <p>Humorous novelty product; miniature coffin for office desk.</p>
+  <div class="player" data-audio="audio/ads/office_coffins.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s66" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s66-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s66-title">[ADVERT] — Papa Gutbuckets Human Jerky</div>
+    <div>SRC: FM-HACK — 2054-08-03</div>
+  </div>
+  <p>Gag novelty jerky product; humorous branding.</p>
+  <div class="player" data-audio="audio/ads/papa_gutbuckets_jerky.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s67" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s67-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s67-title">[PHONE] — Illicit conversation 11/13</div>
+    <div>SRC: MO.BUG — 2054-08-02</div>
+  </div>
+  <p>Intercepted phone conversation; sensitive context.</p>
+  <div class="player" data-audio="audio/phone/illicit_conversation_11_13.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s68" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s68-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s68-title">[ADVERT] — Granny Lupita's Intimacy Ointment</div>
+    <div>SRC: FM-HACK — 2054-08-04</div>
+  </div>
+  <p>Humorous novelty ointment; collectible item.</p>
+  <div class="player" data-audio="audio/ads/granny_lupita_ointment.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s69" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s69-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s69-title">[COMMS] — X23 Transmission</div>
+    <div>SRC: comm-sat-07 — 2054-08-03</div>
+  </div>
+  <p>Intercepted satellite transmission; content partially decoded.</p>
+  <div class="player" data-audio="audio/comms/x23_transmission.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s70" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s70-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s70-title">[ADVERT] — Meemaws Homestyle Brain Pudding</div>
+    <div>SRC: FM-HACK — 2054-08-05</div>
+  </div>
+  <p>Novelty pudding product; collectible gag item.</p>
+  <div class="player" data-audio="audio/ads/meemaws_brain_pudding.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s71" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s71-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s71-title">[ADVERT] — Pastor Cains Megachurch VR</div>
+    <div>SRC: FM-HACK — 2054-08-06</div>
+  </div>
+  <p>VR novelty experience; immersive church simulation.</p>
+  <div class="player" data-audio="audio/ads/pastor_cains_megachurch_vr.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s72" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s72-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s72-title">[PHONE] — Illicit conversation 11/14</div>
+    <div>SRC: MO.BUG — 2054-08-04</div>
+  </div>
+  <p>Intercepted phone call; content sensitive.</p>
+  <div class="player" data-audio="audio/phone/illicit_conversation_11_14.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s73" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s73-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s73-title">[ADVERT] — Barry McCociner's Fertile Fertilizer</div>
+    <div>SRC: FM-HACK — 2054-08-07</div>
+  </div>
+  <p>Novelty fertilizer; humorous branding and packaging.</p>
+  <div class="player" data-audio="audio/ads/barry_mccociner_fertilizer.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s74" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s74-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s74-title">[COMMS] — X24 Transmission</div>
+    <div>SRC: comm-sat-07 — 2054-08-05</div>
+  </div>
+  <p>Intercepted broadcast; partially decoded for context.</p>
+  <div class="player" data-audio="audio/comms/x24_transmission.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s75" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s75-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s75-title">[ADVERT] — Uncle Larry's Toe Jam Lotion</div>
+    <div>SRC: FM-HACK — 2054-08-08</div>
+  </div>
+  <p>Novelty lotion product; gag collectible item.</p>
+  <div class="player" data-audio="audio/ads/uncle_larry_toe_jam.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s76" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s76-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s76-title">[PHONE] — Illicit conversation 11/15</div>
+    <div>SRC: MO.BUG — 2054-08-06</div>
+  </div>
+  <p>Intercepted call; confidential content.</p>
+  <div class="player" data-audio="audio/phone/illicit_conversation_11_15.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s77" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s77-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s77-title">[ADVERT] — Uncle Uncle's Moist Towels</div>
+    <div>SRC: FM-HACK — 2054-08-09</div>
+  </div>
+  <p>Humorous novelty towel product; collectible gag.</p>
+  <div class="player" data-audio="audio/ads/uncle_uncle_moist_towels.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s78" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s78-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s78-title">[COMMS] — X25 Transmission</div>
+    <div>SRC: comm-sat-07 — 2054-08-07</div>
+  </div>
+  <p>Satellite broadcast; partially decoded.</p>
+  <div class="player" data-audio="audio/comms/x25_transmission.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s79" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s79-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s79-title">[ADVERT] — Grandpa Jeff's Autoturrent Defense</div>
+    <div>SRC: FM-HACK — 2054-08-10</div>
+  </div>
+  <p>Gag novelty item; miniature automated turret defense kit.</p>
+  <div class="player" data-audio="audio/ads/grandpa_jeff_autoturrent.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s80" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s80-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s80-title">[PHONE] — Illicit conversation 11/16</div>
+    <div>SRC: MO.BUG — 2054-08-08</div>
+  </div>
+  <p>Intercepted phone call; sensitive content.</p>
+  <div class="player" data-audio="audio/phone/illicit_conversation_11_16.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+<article id="s81" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s81-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s81-title">[ADVERT] — Trudy Mae's Used Condom Depot</div>
+    <div>SRC: FM-HACK — 2054-08-11</div>
+  </div>
+  <p>Humorous novelty item; gag collectible.</p>
+  <div class="player" data-audio="audio/ads/trudy_mae_used_condom_depot.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+
+ <article id="s82" class="archive-window" role="dialog" aria-modal="true" aria-labelledby="s82-title" style="display:none;">
+  <div class="titlebar">
+    <div id="s82-title">[ADVERT] — Gizzard Jerry's Meatswap Emporium</div>
+    <div>SRC: FM-HACK — 2054-08-11</div>
+  </div>
+  <p>Humorous novelty item; gag collectible.</p>
+  <div class="player" data-audio="audio/ads/gizzard_jerrys_meatswap.mp3">
+    <button class="player-btn" data-play>▶ PLAY</button>
+    <div class="player-progress"><div class="player-bar"></div></div>
+    <span class="player-time">0:00 / 0:27</span>
+  </div>
+  <div style="margin-top:12px; text-align:right;">
+    <button class="btn-close" data-close>Close</button>
+  </div>
+</article>
+ 
+</div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="crt-effects.js"></script>
+<script src="crt-barrel.js"></script>
+
+<script>
+/* Overlay open/close logic + stop audio on close */
+(function(){
+  const items = document.querySelectorAll('.archive-item');
+  const overlay = document.getElementById('overlay');
+  const openSound = document.getElementById('openSound');
+  const closeSound = document.getElementById('closeSound');
+
+  // Collect all audio instances
+  const audioPlayers = [];
+
+  // Initialize custom audio players
+  document.querySelectorAll('.player').forEach(wrapper => {
+    const audio = new Audio(wrapper.dataset.audio);
+    audioPlayers.push(audio); // store reference
+    const btn = wrapper.querySelector('[data-play]');
+    const bar = wrapper.querySelector('.player-bar');
+    const time = wrapper.querySelector('.player-time');
+    const progress = wrapper.querySelector('.player-progress');
+
+    function format(sec) {
+      if (isNaN(sec)) return "0:00";
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60).toString().padStart(2,'0');
+      return `${m}:${s}`;
+    }
+
+    btn.addEventListener('click', () => {
+      if (audio.paused) {
+        audio.play();
+        btn.textContent = '⏸ PAUSE';
+      } else {
+        audio.pause();
+        btn.textContent = '▶ PLAY';
+      }
+    });
+
+    audio.addEventListener('timeupdate', () => {
+      const pct = (audio.currentTime / audio.duration) * 100;
+      bar.style.width = pct + "%";
+      time.textContent = `${format(audio.currentTime)} / ${format(audio.duration)}`;
+    });
+
+    progress.addEventListener('click', e => {
+      const rect = progress.getBoundingClientRect();
+      const pos = (e.clientX - rect.left) / rect.width;
+      audio.currentTime = pos * audio.duration;
+    });
+  });
+
+  function play(sound) { try { sound.currentTime=0; sound.play(); } catch(e){} }
+
+  function openWindow(id){
+    play(openSound);
+    overlay.classList.add('active');
+    overlay.setAttribute('aria-hidden','false');
+    overlay.querySelectorAll('.archive-window').forEach(w => w.style.display='none');
+    document.getElementById(id).style.display='block';
+  }
+
+  function closeOverlay(){
+    play(closeSound);
+    overlay.classList.remove('active');
+    overlay.setAttribute('aria-hidden','true');
+    overlay.querySelectorAll('.archive-window').forEach(w => w.style.display='none');
+    
+    // ✅ Stop all playing audio
+    audioPlayers.forEach(a => { 
+      a.pause(); 
+      a.currentTime = 0; 
+    });
+
+    // Reset all play buttons to "▶ PLAY"
+    document.querySelectorAll('.player-btn').forEach(btn => btn.textContent = '▶ PLAY');
+  }
+
+  items.forEach(item=>{
+    const id = item.dataset.id;
+    item.addEventListener('click', ()=>openWindow(id));
+    item.addEventListener('keydown', e=>{
+      if(e.key==='Enter' || e.key===' '){ e.preventDefault(); openWindow(id); }
+    });
+  });
+
+  overlay.addEventListener('click', e=>{ if(e.target===overlay) closeOverlay(); });
+  overlay.querySelectorAll('[data-close]').forEach(btn=>btn.addEventListener('click', closeOverlay));
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeOverlay(); });
+
+})();
+
+</script>
+</body>
+</html>
