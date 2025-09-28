@@ -375,7 +375,7 @@ function gameLoop() {
     ctx.closePath(); ctx.fill();
 
     if (colliding(player, f)) {
-      score += 10;
+      score += 50;
       flasks.splice(i, 1);
       // Play pickup SFX
       pickupSFX.currentTime = 0;
@@ -418,3 +418,4 @@ initGame();
 <script src="crt-effects.js"></script>
 </body>
 </html>
+
