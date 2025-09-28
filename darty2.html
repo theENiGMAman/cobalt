@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Darty — Scientist Jetpack</title>
+<style>
+  body {
+    margin: 0;
+    background: #000;
+    color: #0f0;
+    font-family: monospace;
+    overflow: hidden;
+    user-select: none;
+  }
+  canvas {
+    display: block;
+    margin: 0 auto;
+    background: #000;
+  }
+  #score {
+    position: absolute;
+    bottom: 10px;
+    left: 49%;
+    transform: translateX(-50%);
+    color: #0f0;
+    font-size: 20px;
+  }
+  /* Retro game over popup */
+  #gameOverBox {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(200, 0, 0, 0.8);
+    color: #fff;
+    border: 2px solid #f00;
+    padding: 20px;
+    text-align: center;
+    font-family: monospace;
+    display: none;
+    box-shadow: 0 0 20px red;
+  }
+  #gameOverBox button {
+    background: #000;
+    border: 1px solid #f00;
+    color: #f00;
+    font-family: monospace;
+    padding: 5px 10px;
+    margin: 8px;
+    cursor: pointer;
+  }
+  #gameOverBox button:hover {
+    background: #f00;
+    color: #000;
+  }
+  /* Win popup */
+  #winBox {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 200, 0, 0.85);
+    color: #0f0;
+    border: 2px solid #0f0;
+    padding: 20px;
+    text-align: center;
+    font-family: monospace;
+    display: none;
+    box-shadow: 0 0 20px #0f0;
+  }
+  #winBox button {
+    background: #000;
+    border: 1px solid #0f0;
+    color: #0f0;
+    font-family: monospace;
+    padding: 5px 10px;
+    margin: 8px;
+    cursor: pointer;
+  }
+  #winBox button:hover {
+    background: #0f0;
+    color: #000;
+  }
+</style>
+<link rel="stylesheet" href="styles.css" />
+
+<audio id="clickSound" src="sfx/click.mp3" preload="auto"></audio>
+<audio id="openSound" src="sfx/open.mp3" preload="auto"></audio>
+<audio id="closeSound" src="sfx/close.mp3" preload="auto"></audio>
+
+<script>
+const clickSound = document.getElementById('clickSound');
+const openSound  = document.getElementById('openSound');
+const closeSound = document.getElementById('closeSound');
+
+document.addEventListener('click', () => {
+  clickSound.currentTime = 0;
+  clickSound.play().catch(()=>{});
+});
+
+(function(){
+  const origOpenMessage = window.openMessage;
+  const origCloseOverlay = window.closeOverlay;
+
+  window.openMessage = function(id){
+    openSound.currentTime = 0;
+    openSound.play().catch(()=>{});
+    if (origOpenMessage) origOpenMessage(id);
+  };
+
+  window.closeOverlay = function(){
+    closeSound.currentTime = 0;
+    closeSound.play().catch(()=>{});
+    if (origCloseOverlay) origCloseOverlay();
+  };
+})();
+</script>
+</head>
+<body>
+
+<audio id="bgm" src="sfx/arcade.mp3" loop preload="auto"></audio>
+<audio id="thrustSFX" src="sfx/jump_1.wav" preload="auto"></audio>
+<audio id="pickupSFX" src="sfx/pickup_3.wav" preload="auto"></audio>
+<audio id="deathSFX" src="sfx/error_2.wav" preload="auto"></audio>
+
+<!-- CRT frame overlay -->
+<img class="crt-frame" src="img/crt_green_mask.png" alt="CRT Frame" />
+
+<!-- Hidden SVG filters -->
+<div style="display:none; position:absolute; top:-9999px;">
+  <svg xmlns="http://www.w3.org/2000/svg" id="svg-root" width="0" height="0">
+    <defs>
+      <filter id="SphereMapTest" filterUnits="objectBoundingBox" x="-0.45" y="-1.29" width="1.6" height="3.5">
+        <feImage id="mapa" result="Map" xlink:href="https://chafalleiro.github.io/retromator/img/sphere_wide_1.png" />
+        <feDisplacementMap id="despMap" in="SourceGraphic" in2="map" scale="100" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+      <filter id="contrast">
+        <feComponentTransfer>
+          <feFuncR type="linear" slope="1" intercept="0"/>
+          <feFuncG type="linear" slope="1" intercept="0"/>
+          <feFuncB type="linear" slope="1" intercept="0"/>
+        </feComponentTransfer>
+      </filter>
+      <filter id="brightness">
+        <feComponentTransfer>
+          <feFuncR type="linear" slope="1"/>
+          <feFuncG type="linear" slope="1"/>
+          <feFuncB type="linear" slope="1"/>
+        </feComponentTransfer>
+      </filter>
+    </defs>
+  </svg>
+</div>
+
+<div class="noise"></div>
+
+<div id="crtContainer" class="crt-container">
+  <div class="scan-line"></div>
+  <div class="distort-overlay"></div>
+  
+  <div id="custom-cursor"></div>
+  <div class="container">
+    <div class="frame">
+      <div class="screen crt" id="screen">
+        <pre style="font-family: monospace; font-size: 14px;">
+__/\\\\\\\\\\\\________/\\\\\\\\\_______/\\\\\\\\\______/\\\\\\\\\\\\\\\__/\\\________/\\\______________/\\\\\\\\\_____        
+ _\/\\\////////\\\____/\\\\\\\\\\\\\___/\\\///////\\\___\///////\\\/////__\///\\\____/\\\/_____________/\\\///////\\\___       
+  _\/\\\______\//\\\__/\\\/////////\\\_\/\\\_____\/\\\_________\/\\\_________\///\\\/\\\/______________\///______\//\\\__      
+   _\/\\\_______\/\\\_\/\\\_______\/\\\_\/\\\\\\\\\\\/__________\/\\\___________\///\\\/__________________________/\\\/___     
+    _\/\\\_______\/\\\_\/\\\\\\\\\\\\\\\_\/\\\//////\\\__________\/\\\_____________\/\\\________________________/\\\//_____    
+     _\/\\\_______\/\\\_\/\\\/////////\\\_\/\\\____\//\\\_________\/\\\_____________\/\\\_____________________/\\\//________   
+      _\/\\\_______/\\\__\/\\\_______\/\\\_\/\\\_____\//\\\________\/\\\_____________\/\\\___________________/\\\/___________  
+       _\/\\\\\\\\\\\\/___\/\\\_______\/\\\_\/\\\______\//\\\_______\/\\\_____________\/\\\__________________/\\\\\\\\\\\\\\\_ 
+        _\////////////_____\///________\///__\///________\///________\///______________\///__________________\///////////////__
+		
+DARTY 2 - THE SCIENTIST JETPACK GAME
+Created by TEAM SRC.
+<div id="score">Score: 0</div>
+<canvas id="gameCanvas" width="800" height="400"></canvas>
+
+<!-- Game Over Popup -->
+<div id="gameOverBox">
+  <h2>!!! SYSTEM FAILURE !!!</h2>
+  <p id="finalScore">Score: 0</p>
+  <button onclick="restartGame()">PLAY AGAIN</button>
+  <button onclick="window.location.href='index.html'">BACK TO TERMINAL</button>
+</div>
+
+<!-- Win Popup -->
+<div id="winBox">
+  <h2>*** ACCESS GRANTED ***</h2>
+  <p>You reached 10,000 points!</p>
+  <p>Your 4-digit override code is: <span id="winCode"></span></p>
+  <button onclick="restartGame()">PLAY AGAIN</button>
+  <button onclick="window.location.href='index.html'">BACK TO TERMINAL</button>
+</div>
+        </pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// --- AUDIO ---
+const bgm = new Audio('sfx/arcade.mp3'); bgm.loop = true; bgm.volume = 0.4;
+const thrustSFX = new Audio('sfx/jump_1.wav'); thrustSFX.volume = 0.8;
+const pickupSFX = new Audio('sfx/pickup_3.wav'); pickupSFX.volume = 0.8;
+const deathSFX = new Audio('sfx/error_2.wav'); deathSFX.volume = 0.8;
+
+// --- GAME VARIABLES ---
+let baseGravity = 0.2, lift = -5, score = 0, gameRunning = false;
+let pipes = [];
+const pipeWidth = 40, basePipeGap = 140, pipeSpacing = 200;
+const canvasHeight = canvas.height, canvasWidth = canvas.width;
+let basePipeSpeed = 2;
+
+// --- PLAYER ---
+const player = {
+  x: 100,
+  y: canvasHeight/2,
+  width: 20,
+  height: 20,
+  dy: 0,
+  draw() {
+    ctx.fillStyle = "#0f0";
+    ctx.fillRect(this.x, this.y, this.width, this.height);
+    ctx.fillRect(this.x + 4, this.y - 10, 12, 10);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(this.x + 6, this.y - 6, 3, 3);
+    ctx.fillRect(this.x + 11, this.y - 6, 3, 3);
+    ctx.fillStyle = "#0f0";
+    ctx.fillRect(this.x - 4, this.y + 4, 4, 4);
+    ctx.fillRect(this.x + this.width, this.y + 4, 4, 4);
+    ctx.fillRect(this.x + 3, this.y + this.height, 5, 5);
+    ctx.fillRect(this.x + 12, this.y + this.height, 5, 5);
+  },
+  flap() {
+    this.dy = lift;
+    thrustSFX.currentTime = 0;
+    thrustSFX.play().catch(()=>{});
+  },
+  update() {
+    this.dy += getGravity();
+    this.y += this.dy;
+    if(this.y < 0) this.y = 0;
+    if(this.y + this.height > canvasHeight) {
+      this.y = canvasHeight - this.height;
+      gameOver();
+    }
+    this.draw();
+  }
+};
+
+// --- DIFFICULTY FUNCTIONS ---
+function getPipeSpeed() {
+  return basePipeSpeed + score * 0.05; // speed increases with score
+}
+
+function getPipeGap() {
+  return Math.max(60, basePipeGap - score * 0.5); // gap shrinks with score
+}
+
+function getGravity() {
+  return Math.min(0.8, baseGravity + score * 0.002); // gravity slowly increases
+}
+
+// --- INIT GAME ---
+function initGame() {
+  gameRunning = true;
+  score = 0;
+  player.y = canvasHeight/2;
+  player.dy = 0;
+  pipes = [];
+  for (let i=0; i<5; i++) createPipe(canvasWidth + i*pipeSpacing);
+  bgm.currentTime = 0;
+  bgm.play().catch(()=>{});
+  requestAnimationFrame(gameLoop);
+}
+
+// --- PIPE MANAGEMENT ---
+function createPipe(x) {
+  const gap = getPipeGap();
+  const topHeight = Math.floor(Math.random() * (canvasHeight - gap - 40)) + 20;
+  const bottomY = topHeight + gap;
+  pipes.push({x: x, top: topHeight, bottom: bottomY});
+}
+
+function collidingPipe(p, player) {
+  return player.x + player.width > p.x &&
+         player.x < p.x + pipeWidth &&
+         (player.y < p.top || player.y + player.height > p.bottom);
+}
+
+// --- GAME OVER ---
+function gameOver() {
+  if (!gameRunning) return;
+  gameRunning = false;
+  deathSFX.currentTime = 0;
+  deathSFX.play().catch(()=>{});
+  bgm.pause();
+  document.getElementById("finalScore").innerText = "Score: " + score;
+  document.getElementById("gameOverBox").style.display = "block";
+}
+
+// --- GAME LOOP ---
+function gameLoop() {
+  if (!gameRunning) return;
+  ctx.clearRect(0,0,canvasWidth,canvasHeight);
+
+  pipes.forEach((p,i) => {
+    p.x -= getPipeSpeed();
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(p.x,0,pipeWidth,p.top);
+    ctx.fillRect(p.x,p.bottom,pipeWidth,canvasHeight-p.bottom);
+
+    if (collidingPipe(p, player)) gameOver();
+
+    if (!p.scored && p.x + pipeWidth < player.x) {
+      score++;
+      p.scored = true;
+    }
+
+    if (p.x + pipeWidth < 0) {
+      pipes.splice(i,1);
+      createPipe(canvasWidth + pipeSpacing);
+    }
+  });
+
+  player.update();
+  document.getElementById("score").innerText = "Score: " + score;
+
+  requestAnimationFrame(gameLoop);
+}
+
+// --- RESTART ---
+function restartGame() {
+  document.getElementById("gameOverBox").style.display = "none";
+  document.getElementById("winBox").style.display = "none";
+  initGame();
+}
+
+// --- INPUT ---
+document.addEventListener('keydown', e => {
+  if (e.code === "Space" || e.code === "ArrowUp") player.flap();
+});
+
+// --- START ---
+initGame();
+</script>
+
+<script src="crt-effects.js"></script>
+</body>
+</html>
