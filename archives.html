@@ -42,11 +42,46 @@
 </script>
 </head>
 <body>
+<!-- CRT frame overlay -->
+<img class="crt-frame" src="img/crt_green_mask.png" alt="CRT Frame" />
+
+<!-- Hidden SVG filters -->
+<div style="display:none; position:absolute; top:-9999px;">
+  <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" id="svg-root" width="0" height="0">
+    <defs>
+      <!-- Barrel distortion -->
+      <filter id="SphereMapTest" filterUnits="objectBoundingBox" x="-0.45" y="-1.29" width="1.6" height="3.5">
+        <feImage id="mapa" result="Map" xlink:href="https://chafalleiro.github.io/retromator/img/sphere_wide_1.png" />
+        <feDisplacementMap id="despMap" in="SourceGraphic" in2="map" scale="100" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+
+      <!-- Brightness / contrast (optional tweak) -->
+      <filter id="contrast">
+        <feComponentTransfer>
+          <feFuncR type="linear" slope="1" intercept="0"/>
+          <feFuncG type="linear" slope="1" intercept="0"/>
+          <feFuncB type="linear" slope="1" intercept="0"/>
+        </feComponentTransfer>
+      </filter>
+      <filter id="brightness">
+        <feComponentTransfer>
+          <feFuncR type="linear" slope="1"/>
+          <feFuncG type="linear" slope="1"/>
+          <feFuncB type="linear" slope="1"/>
+        </feComponentTransfer>
+      </filter>
+    </defs>
+  </svg>
+</div>
+
 <script src="sound.js"></script>
   <div class="noise"></div>
-  <div id="crtContainer" class="crt-container">
-    <div class="scan-line"></div>
-    <div class="distort-overlay"></div>
+<!-- CRT container -->
+<div id="crtContainer" class="crt-container">
+  <div class="scan-line"></div>
+  <div class="distort-overlay"></div>
+  
+  <div id="custom-cursor"></div>
 
     <div class="container">
       <div class="frame" role="application" aria-label="Cobalt archives node">
@@ -82,7 +117,7 @@ COBALT ARCHIVE NODE — CLASSIFIED (LEVEL 2)
 
   <p> NOTES: Many entries are redacted in compliance with Cobalt security policy. Request full node replication via Access Token Portal."></p>
 
-<p> <span>AVAILABLE NODES YOU MAY ACCESS</span>: [<a href="incidents.html">Incident Reports</a>, <a href="index.html">Terminal</a>, <a href="messages.html">Messages</a>, <a href="support.html">Support</a>...]'></p>
+<p> <span>AVAILABLE NODES YOU MAY ACCESS</span>: [<a href="incidents.html">Incident Reports</a>, <a href="index.html">Terminal</a>, <a href="messages.html">Messages</a>, <a href="darty.html">D.A.R.T.Y</a>, <a href="support.html">Support</a>...]'></p>
 </div>
 
 </pre>

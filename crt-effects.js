@@ -174,10 +174,20 @@ window.addEventListener("DOMContentLoaded", () => {
   setTimeout(typeAllLines, 3000);
 });
 
+
+// ===============================
+// MOUSE MOVE
+// ===============================
+
+const cursor = document.getElementById("custom-cursor");
+
+document.addEventListener("mousemove", e => {
+  cursor.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
+});
+
 // ===============================
 // DISTORTION OVERLAY
 // ===============================
-
 (function () {
   const distort = document.querySelector(".distort-overlay");
   if (!distort) return;

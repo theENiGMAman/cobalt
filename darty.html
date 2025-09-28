@@ -123,11 +123,52 @@
 </script>
 </head>
 <body>
-  <script src="sound.js"></script>
-<div class="noise"></div>
+
+<audio id="bgm" src="sfx/arcade.mp3" loop preload="auto"></audio>
+<audio id="jumpSFX" src="sfx/jump_1.wav" preload="auto"></audio>
+<audio id="pickupSFX" src="sfx/pickup_3.wav" preload="auto"></audio>
+<audio id="deathSFX" src="sfx/error_2.wav" preload="auto"></audio>
+
+<!-- CRT frame overlay -->
+<img class="crt-frame" src="img/crt_green_mask.png" alt="CRT Frame" />
+
+<!-- Hidden SVG filters -->
+<div style="display:none; position:absolute; top:-9999px;">
+  <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" id="svg-root" width="0" height="0">
+    <defs>
+      <!-- Barrel distortion -->
+      <filter id="SphereMapTest" filterUnits="objectBoundingBox" x="-0.45" y="-1.29" width="1.6" height="3.5">
+        <feImage id="mapa" result="Map" xlink:href="https://chafalleiro.github.io/retromator/img/sphere_wide_1.png" />
+        <feDisplacementMap id="despMap" in="SourceGraphic" in2="map" scale="100" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+
+      <!-- Brightness / contrast (optional tweak) -->
+      <filter id="contrast">
+        <feComponentTransfer>
+          <feFuncR type="linear" slope="1" intercept="0"/>
+          <feFuncG type="linear" slope="1" intercept="0"/>
+          <feFuncB type="linear" slope="1" intercept="0"/>
+        </feComponentTransfer>
+      </filter>
+      <filter id="brightness">
+        <feComponentTransfer>
+          <feFuncR type="linear" slope="1"/>
+          <feFuncG type="linear" slope="1"/>
+          <feFuncB type="linear" slope="1"/>
+        </feComponentTransfer>
+      </filter>
+    </defs>
+  </svg>
+</div>
+
+<script src="sound.js"></script>
+  <div class="noise"></div>
+<!-- CRT container -->
 <div id="crtContainer" class="crt-container">
   <div class="scan-line"></div>
   <div class="distort-overlay"></div>
+  
+  <div id="custom-cursor"></div>
   <div class="container">
     <div class="frame">
       <div class="screen crt" id="screen">
@@ -173,8 +214,62 @@ Created by TEAM SRC.
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-let gameSpeed, gravity, score, frameCount, gameRunning;
+// --- AUDIO ELEMENTS ---
+const bgm = new Audio('sfx/arcade.mp3'); bgm.loop = true; bgm.volume = 0.4;
+const jumpSFX = new Audio('sfx/jump_1.wav'); jumpSFX.volume = 0.8;
+const pickupSFX = new Audio('sfx/pickup_3.wav'); pickupSFX.volume = 0.8;
+const deathSFX = new Audio('sfx/error_2.wav'); deathSFX.volume = 0.8;
 
+// --- GAME VARIABLES ---
+let gameSpeed, gravity, score, frameCount, gameRunning;
+let obstacles = [], flasks = [], birds = [];
+
+// Minimum and maximum horizontal spacing
+const minSpacing = 40;
+const maxSpacing = 120;
+const birdChance = 0.3; // Red squares less frequent
+
+let nextObstacleIn, nextBirdIn, nextFlaskIn;
+
+// Utility function for random int
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+// --- PLAYER ---
+const player = {
+  x: 50, y: 150, width: 20, height: 20, dy: 0, jumping: false,
+  draw() {
+    ctx.fillStyle = "#0f0";
+    ctx.fillRect(this.x, this.y, this.width, this.height);
+    ctx.fillRect(this.x + 4, this.y - 10, 12, 10);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(this.x + 6, this.y - 6, 3, 3);
+    ctx.fillRect(this.x + 11, this.y - 6, 3, 3);
+    ctx.fillStyle = "#0f0";
+    ctx.fillRect(this.x - 4, this.y + 4, 4, 4);
+    ctx.fillRect(this.x + this.width, this.y + 4, 4, 4);
+    ctx.fillRect(this.x + 3, this.y + this.height, 5, 5);
+    ctx.fillRect(this.x + 12, this.y + this.height, 5, 5);
+  },
+  jump() {
+    if (!this.jumping) {
+      this.dy = -12;
+      this.jumping = true;
+      // Play jump SFX
+      jumpSFX.currentTime = 0;
+      jumpSFX.play().catch(()=>{});
+    }
+  },
+  update() {
+    this.y += this.dy;
+    if (this.y + this.height < canvas.height) this.dy += gravity;
+    else { this.dy = 0; this.y = canvas.height - this.height; this.jumping = false; }
+    this.draw();
+  }
+};
+
+// --- INIT GAME ---
 function initGame() {
   gameSpeed = 4;
   gravity = 1;
@@ -189,154 +284,137 @@ function initGame() {
   document.getElementById("score").innerText = "Score: 0";
   document.getElementById("gameOverBox").style.display = "none";
   document.getElementById("winBox").style.display = "none";
+
+  nextObstacleIn = randomInt(minSpacing, maxSpacing);
+  nextBirdIn = randomInt(minSpacing*2, maxSpacing*2);
+  nextFlaskIn = randomInt(100, 250);
+
+  // Start BGM
+  bgm.currentTime = 0;
+  bgm.play().catch(()=>{});
+
   requestAnimationFrame(gameLoop);
 }
 
-// Old scientist character
-const player = {
-  x: 50,
-  y: 150,
-  width: 20,
-  height: 20,
-  dy: 0,
-  jumping: false,
-  draw() {
-    ctx.fillStyle = "#0f0";
-    ctx.fillRect(this.x, this.y, this.width, this.height); // body
-
-    ctx.fillRect(this.x + 4, this.y - 10, 12, 10); // head
-
-    ctx.fillStyle = "#000"; // eyes
-    ctx.fillRect(this.x + 6, this.y - 6, 3, 3);
-    ctx.fillRect(this.x + 11, this.y - 6, 3, 3);
-
-    ctx.fillStyle = "#0f0"; // arms + legs
-    ctx.fillRect(this.x - 4, this.y + 4, 4, 4);
-    ctx.fillRect(this.x + this.width, this.y + 4, 4, 4);
-    ctx.fillRect(this.x + 3, this.y + this.height, 5, 5);
-    ctx.fillRect(this.x + 12, this.y + this.height, 5, 5);
-  },
-  jump() {
-    if (!this.jumping) {
-      this.dy = -12;
-      this.jumping = true;
-    }
-  },
-  update() {
-    this.y += this.dy;
-    if (this.y + this.height < canvas.height) {
-      this.dy += gravity;
-    } else {
-      this.dy = 0;
-      this.y = canvas.height - this.height;
-      this.jumping = false;
-    }
-    this.draw();
-  }
-};
-
-let obstacles = [];
-let flasks = [];
-let birds = [];
-
+// --- SPAWN ---
 function spawnObstacle() {
   obstacles.push({ x: canvas.width, y: canvas.height - 20, width: 20, height: 20 });
+  nextObstacleIn = randomInt(minSpacing, maxSpacing);
 }
 function spawnFlask() {
   flasks.push({ x: canvas.width, y: canvas.height - 25, width: 10, height: 10 });
+  nextFlaskIn = randomInt(100, 250);
 }
 function spawnBird() {
-  const heights = [80, 100, 120];
-  birds.push({ x: canvas.width, y: heights[Math.floor(Math.random() * heights.length)], width: 20, height: 20 });
+  if (Math.random() < birdChance) {
+    const heights = [80, 100, 120];
+    birds.push({ x: canvas.width, y: heights[Math.floor(Math.random() * heights.length)], width: 20, height: 20 });
+  }
+  nextBirdIn = randomInt(minSpacing*2, maxSpacing*2);
 }
 
+// --- COLLISION CHECK ---
 function colliding(a, b) {
-  return a.x < b.x + b.width &&
-         a.x + a.width > b.x &&
-         a.y < b.y + b.height &&
-         a.y + a.height > b.y;
+  return a.x < b.x + b.width && a.x + a.width > b.x &&
+         a.y < b.y + b.height && a.y + a.height > b.y;
 }
 
+// --- GAME OVER ---
 function gameOver() {
+  if (!gameRunning) return;
   gameRunning = false;
+  // Play death SFX
+  deathSFX.currentTime = 0;
+  deathSFX.play().catch(()=>{});
+  // Stop BGM
+  bgm.pause();
   document.getElementById("finalScore").innerText = "Score: " + score;
   document.getElementById("gameOverBox").style.display = "block";
 }
 
+// --- WIN ---
 function winGame() {
+  if (!gameRunning) return;
   gameRunning = false;
-  const code = 8989; // <-- FIXED CODE, change here if needed
+  bgm.pause();
+  const code = 8989;
   document.getElementById("winCode").innerText = code;
   document.getElementById("winBox").style.display = "block";
 }
 
+// --- GAME LOOP ---
 function gameLoop() {
   if (!gameRunning) return;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   frameCount++;
-
   if (frameCount % 300 === 0) gameSpeed += 0.5;
-  if (frameCount % 90 === 0) spawnObstacle();
-  if (frameCount % 200 === 0) spawnFlask();
-  if (frameCount % 400 === 0) spawnBird();
 
+  // Spawn logic
+  nextObstacleIn--; if (nextObstacleIn <= 0) spawnObstacle();
+  nextBirdIn--; if (nextBirdIn <= 0) spawnBird();
+  nextFlaskIn--; if (nextFlaskIn <= 0) spawnFlask();
+
+  // Obstacles
   obstacles.forEach((o, i) => {
     o.x -= gameSpeed;
     ctx.fillStyle = "#fff";
     ctx.fillRect(o.x, o.y, o.width, o.height);
     if (colliding(player, o)) gameOver();
-    if (o.x + o.width < 0) obstacles.splice(i,1);
+    if (o.x + o.width < 0) obstacles.splice(i, 1);
   });
 
+  // Flasks
   flasks.forEach((f, i) => {
     f.x -= gameSpeed;
     ctx.fillStyle = "#0f0";
     ctx.beginPath();
     ctx.moveTo(f.x, f.y + f.height);
-    ctx.lineTo(f.x + f.width/2, f.y);
+    ctx.lineTo(f.x + f.width / 2, f.y);
     ctx.lineTo(f.x + f.width, f.y + f.height);
-    ctx.closePath();
-    ctx.fill();
+    ctx.closePath(); ctx.fill();
+
     if (colliding(player, f)) {
       score += 10;
-      flasks.splice(i,1);
+      flasks.splice(i, 1);
+      // Play pickup SFX
+      pickupSFX.currentTime = 0;
+      pickupSFX.play().catch(()=>{});
     }
-    if (f.x + f.width < 0) flasks.splice(i,1);
+
+    if (f.x + f.width < 0) flasks.splice(i, 1);
   });
 
+  // Birds
   birds.forEach((b, i) => {
     b.x -= gameSpeed;
     ctx.fillStyle = "#f00";
     ctx.fillRect(b.x, b.y, b.width, b.height);
     if (colliding(player, b)) gameOver();
-    if (b.x + b.width < 0) birds.splice(i,1);
+    if (b.x + b.width < 0) birds.splice(i, 1);
   });
 
   player.update();
-
   score++;
   document.getElementById("score").innerText = "Score: " + score;
 
-  // Win condition
-  if (score >= 10000) { // <-- CHANGE THIS NUMBER TO SET WINNING SCORE (lower for testing)
-    winGame();
-    return;
-  }
-
-  requestAnimationFrame(gameLoop);
+  if (score >= 10000) winGame();
+  else requestAnimationFrame(gameLoop);
 }
 
-function restartGame() {
-  initGame();
-}
+// --- RESTART ---
+function restartGame() { initGame(); }
 
+// --- INPUT ---
 document.addEventListener('keydown', e => {
   if (e.code === "Space" || e.code === "ArrowUp") player.jump();
 });
 
+// --- START ---
 initGame();
 </script>
+
+
 <script src="crt-effects.js"></script>
 </body>
 </html>

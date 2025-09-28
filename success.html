@@ -17,7 +17,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
+  z-index: 4999 !important;  /* now below cursor */
   padding: 24px;
 }
 
@@ -117,7 +117,6 @@
   border: 1px solid rgba(255,255,255,0.06);
   color: #dfffe0;
   padding: 6px 10px;
-  cursor: url('cursor.png'), pointer;
   border-radius: 4px;
   font-family: monospace;
 }
@@ -139,11 +138,46 @@
 </style>
 </head>
 <body>
- <script src="sound.js"></script>
+<!-- CRT frame overlay -->
+<img class="crt-frame" src="img/crt_green_mask.png" alt="CRT Frame" />
+
+<!-- Hidden SVG filters -->
+<div style="display:none; position:absolute; top:-9999px;">
+  <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" id="svg-root" width="0" height="0">
+    <defs>
+      <!-- Barrel distortion -->
+      <filter id="SphereMapTest" filterUnits="objectBoundingBox" x="-0.45" y="-1.29" width="1.6" height="3.5">
+        <feImage id="mapa" result="Map" xlink:href="https://chafalleiro.github.io/retromator/img/sphere_wide_1.png" />
+        <feDisplacementMap id="despMap" in="SourceGraphic" in2="map" scale="100" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+
+      <!-- Brightness / contrast (optional tweak) -->
+      <filter id="contrast">
+        <feComponentTransfer>
+          <feFuncR type="linear" slope="1" intercept="0"/>
+          <feFuncG type="linear" slope="1" intercept="0"/>
+          <feFuncB type="linear" slope="1" intercept="0"/>
+        </feComponentTransfer>
+      </filter>
+      <filter id="brightness">
+        <feComponentTransfer>
+          <feFuncR type="linear" slope="1"/>
+          <feFuncG type="linear" slope="1"/>
+          <feFuncB type="linear" slope="1"/>
+        </feComponentTransfer>
+      </filter>
+    </defs>
+  </svg>
+</div>
+
+<script src="sound.js"></script>
   <div class="noise"></div>
-  <div id="crtContainer" class="crt-container">
-    <div class="scan-line"></div>
-    <div class="distort-overlay"></div>
+<!-- CRT container -->
+<div id="crtContainer" class="crt-container">
+  <div class="scan-line"></div>
+  <div class="distort-overlay"></div>
+  
+  <div id="custom-cursor"></div>
 
     <div class="container">
       <div class="frame" role="application" aria-label="Cobalt access success">
@@ -160,10 +194,9 @@ COBALT ACCESS CONTROL — AUTHENTICATION SUCCESS
         </div>
       </div>
     </div>
-  </div>
-
-  <!-- SUCCESS OVERLAY (outside CRT so it's not squashed) -->
-  <div class="success-overlay" role="dialog" aria-modal="true" aria-labelledby="sw-title">
+	
+	
+	  <div class="success-overlay" role="dialog" aria-modal="true" aria-labelledby="sw-title">
     <div class="success-window" role="document" aria-labelledby="sw-title">
       <div class="ribbon">CLASSIFIED</div>
 
@@ -224,7 +257,12 @@ COBALT ACCESS CONTROL — AUTHENTICATION SUCCESS
       </div>
     </div>
   </div>
+	
+	
+  </div>
 
+  <!-- SUCCESS OVERLAY (outside CRT so it's not squashed) -->
+</div>
 <script>
 /* Small interaction handlers */
 document.getElementById('btn-cancel').addEventListener('click', () => {
