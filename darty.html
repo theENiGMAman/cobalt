@@ -215,10 +215,10 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
 // --- AUDIO ELEMENTS ---
-const bgm = new Audio('sfx/arcade.mp3'); bgm.loop = true; bgm.volume = 0.4;
-const jumpSFX = new Audio('sfx/jump_1.wav'); jumpSFX.volume = 0.8;
-const pickupSFX = new Audio('sfx/pickup_3.wav'); pickupSFX.volume = 0.8;
-const deathSFX = new Audio('sfx/error_2.wav'); deathSFX.volume = 0.8;
+const bgm = new Audio('sfx/arcade.mp3'); bgm.loop = true; bgm.volume = 0.2;
+const jumpSFX = new Audio('sfx/jump_1.wav'); jumpSFX.volume = 0.6;
+const pickupSFX = new Audio('sfx/pickup_3.wav'); pickupSFX.volume = 0.6;
+const deathSFX = new Audio('sfx/error_2.wav'); deathSFX.volume = 0.6;
 
 // --- GAME VARIABLES ---
 let gameSpeed, gravity, score, frameCount, gameRunning;
@@ -418,4 +418,5 @@ initGame();
 <script src="crt-effects.js"></script>
 </body>
 </html>
+
 
