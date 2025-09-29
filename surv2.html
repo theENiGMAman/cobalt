@@ -6,6 +6,11 @@
 <title>COBALT — SURVEILLANCE ARCHIVE</title>
 <link rel="stylesheet" href="styles.css" />
 <style>
+/* Override external stylesheet for this page only */
+html, body {
+  overflow: auto !important; /* Allow scrolling on this page only */
+}
+
 /* Inline styles for surveillance page */
 .screen.crt { font-family: monospace; font-size: 13px; line-height: 1.15; }
 
@@ -33,22 +38,9 @@
   min-width: 170px;
 }
 
-/* Fake window for playback */
-.archive-window {
-  width: min(800px, 94%);
-  max-height: 80vh;
-  overflow: auto;
-  background: rgba(8,14,6,0.95);
-  border: 2px solid rgba(120,255,160,0.08);
-  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
-  padding: 14px;
-  color: #dfffe0;
-  font-family: monospace;
-  font-size: 13px;
-  line-height: 1.25;
-  border-radius: 6px;
-  position: relative;
-}
+
+
+
 .archive-window .titlebar {
   display:flex;
   align-items:center;
@@ -138,8 +130,16 @@
   margin: auto;
   z-index: 6100;
   max-height: 80vh;
+  width: min(800px, 94%);
   overflow: auto;
-
+  background: rgba(8,14,6,0.95);
+  border: 2px solid rgba(120,255,160,0.08);
+  padding: 14px;
+  color: #dfffe0;
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.25;
+  border-radius: 6px;
   /* Fake page dim with massive shadow */
   box-shadow: 0 0 0 5000px rgba(0, 0, 0, 0.7);
 }
@@ -2211,5 +2211,7 @@ COBALT SURVEILLANCE — AUDIO ARCHIVE
 })();
 
 </script>
+
+
 </body>
 </html>
